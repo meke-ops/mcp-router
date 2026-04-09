@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
+import json
 from uuid import uuid4
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -12,8 +14,9 @@ from internal.container import ServiceContainer
 from internal.health import ReadinessService
 from internal.logging import configure_logging
 from internal.mcp.service import MCPRouterService
-from internal.registry import InMemoryToolRegistry
+from internal.registry import InMemoryToolRegistry, UpstreamServerDefinition
 from internal.session_manager import InMemorySessionManager
+from internal.upstream import UpstreamTransportGateway
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
@@ -25,14 +28,23 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         return response
 
 
-def create_service_container(settings: Settings) -> ServiceContainer:
+def create_service_container(
+    settings: Settings,
+    upstream_servers: list[UpstreamServerDefinition] | None = None,
+    http_transport_overrides: dict[str, httpx.AsyncBaseTransport] | None = None,
+) -> ServiceContainer:
+    resolved_upstream_servers = upstream_servers or _load_upstream_servers(settings)
     session_manager = InMemorySessionManager(ttl_seconds=settings.session_ttl_seconds)
-    tool_registry = InMemoryToolRegistry()
+    tool_registry = InMemoryToolRegistry(upstream_servers=resolved_upstream_servers)
     readiness_service = ReadinessService(settings=settings)
+    upstream_gateway = UpstreamTransportGateway(
+        http_transport_overrides=http_transport_overrides,
+    )
     mcp_service = MCPRouterService(
         settings=settings,
         session_manager=session_manager,
         tool_registry=tool_registry,
+        upstream_gateway=upstream_gateway,
     )
 
     return ServiceContainer(
@@ -40,17 +52,63 @@ def create_service_container(settings: Settings) -> ServiceContainer:
         readiness_service=readiness_service,
         session_manager=session_manager,
         tool_registry=tool_registry,
+        upstream_gateway=upstream_gateway,
         mcp_service=mcp_service,
     )
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def _load_upstream_servers(settings: Settings) -> list[UpstreamServerDefinition] | None:
+    if not settings.upstreams_json:
+        return None
+
+    raw_items = json.loads(settings.upstreams_json)
+    if not isinstance(raw_items, list):
+        raise ValueError("MCP_ROUTER_UPSTREAMS_JSON must be a JSON array.")
+
+    upstream_servers: list[UpstreamServerDefinition] = []
+    for raw_item in raw_items:
+        if not isinstance(raw_item, dict):
+            raise ValueError("Each upstream definition must be a JSON object.")
+        command = raw_item.get("command", [])
+        if not isinstance(command, list) or not all(
+            isinstance(part, str) for part in command
+        ):
+            raise ValueError("Upstream command must be a JSON array of strings.")
+        env = raw_item.get("env", {})
+        if not isinstance(env, dict) or not all(
+            isinstance(key, str) and isinstance(value, str) for key, value in env.items()
+        ):
+            raise ValueError("Upstream env must be a JSON object of string pairs.")
+
+        upstream_servers.append(
+            UpstreamServerDefinition(
+                server_id=str(raw_item["server_id"]),
+                transport=raw_item["transport"],
+                endpoint_url=raw_item.get("endpoint_url"),
+                command=tuple(command),
+                env=env,
+                timeout_seconds=float(raw_item.get("timeout_seconds", 10.0)),
+            )
+        )
+
+    return upstream_servers
+
+
+def create_app(
+    settings: Settings | None = None,
+    upstream_servers: list[UpstreamServerDefinition] | None = None,
+    http_transport_overrides: dict[str, httpx.AsyncBaseTransport] | None = None,
+) -> FastAPI:
     app_settings = settings or get_settings()
     configure_logging(app_settings.log_level)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        app.state.services = create_service_container(app_settings)
+        app.state.services = create_service_container(
+            app_settings,
+            upstream_servers=upstream_servers,
+            http_transport_overrides=http_transport_overrides,
+        )
         yield
 
     app = FastAPI(

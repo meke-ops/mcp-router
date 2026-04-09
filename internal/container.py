@@ -5,6 +5,7 @@ from internal.health import ReadinessService
 from internal.mcp.service import MCPRouterService
 from internal.registry import InMemoryToolRegistry
 from internal.session_manager import InMemorySessionManager
+from internal.upstream import UpstreamTransportGateway
 
 
 @dataclass(slots=True)
@@ -13,4 +14,5 @@ class ServiceContainer:
     readiness_service: ReadinessService
     session_manager: InMemorySessionManager
     tool_registry: InMemoryToolRegistry
+    upstream_gateway: UpstreamTransportGateway
     mcp_service: MCPRouterService

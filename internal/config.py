@@ -24,6 +24,7 @@ class Settings:
     require_dependencies_for_readiness: bool = False
     postgres_dsn: str | None = None
     redis_url: str | None = None
+    upstreams_json: str | None = None
 
 
 @lru_cache
@@ -44,4 +45,5 @@ def get_settings() -> Settings:
         ),
         postgres_dsn=os.getenv("MCP_ROUTER_POSTGRES_DSN"),
         redis_url=os.getenv("MCP_ROUTER_REDIS_URL"),
+        upstreams_json=os.getenv("MCP_ROUTER_UPSTREAMS_JSON"),
     )

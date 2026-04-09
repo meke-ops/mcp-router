@@ -6,14 +6,15 @@ routing, and observability.
 ## Current status
 
 The repository now includes the backend bootstrap for milestone 1 and the first
-slice of milestone 2:
+working slice of milestone 2:
 
 - FastAPI application skeleton
 - `/v1/health` and `/v1/ready` endpoints
 - `POST /mcp` JSON-RPC entrypoint
 - in-memory session bootstrap for `initialize`
-- `tools/list` and `tools/call` scaffolding
-- test suite for the initial API contract
+- upstream passthrough for `initialize`, `tools/list`, and `tools/call`
+- HTTP upstream session propagation through `MCP-Session-Id`
+- integration tests covering one HTTP and one stdio upstream
 
 ## Project layout
 
@@ -44,9 +45,27 @@ The API will be available at `http://127.0.0.1:8000`.
 pytest
 ```
 
+## Demo upstream configuration
+
+The router can load demo upstreams from `MCP_ROUTER_UPSTREAMS_JSON`.
+
+Example:
+
+```bash
+export MCP_ROUTER_UPSTREAMS_JSON='[
+  {"server_id":"demo-http","transport":"streamable_http","endpoint_url":"http://127.0.0.1:9001/mcp"},
+  {"server_id":"demo-stdio","transport":"stdio","command":["python3","examples/upstreams/stdio_server.py"]}
+]'
+```
+
+You can start the sample HTTP upstream with:
+
+```bash
+python3 examples/upstreams/http_server.py
+```
+
 ## Next backend steps
 
 - replace in-memory session management with Redis-backed lifecycle management
-- add upstream MCP server bindings and passthrough routing
 - introduce registry persistence, schema validation, and policy enforcement
 - wire PostgreSQL, Redis, tracing, and audit storage into readiness checks

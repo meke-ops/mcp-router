@@ -12,6 +12,8 @@ class JsonRpcErrorCode(IntEnum):
     SESSION_REQUIRED = -32001
     TOOL_NOT_FOUND = -32004
     UPSTREAM_NOT_CONFIGURED = -32005
+    UPSTREAM_UNAVAILABLE = -32006
+    TOOL_NAME_CONFLICT = -32007
 
 
 @dataclass(slots=True)

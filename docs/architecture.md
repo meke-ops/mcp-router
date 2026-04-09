@@ -9,7 +9,8 @@ strictly away from the dashboard/UI scope.
 - versioned REST surface under `/v1`
 - MCP JSON-RPC ingress at `POST /mcp`
 - in-memory session manager to support `initialize`
-- empty in-memory tool registry to prepare for persisted registry work
+- upstream-aware in-memory registry for tool discovery and routing
+- passthrough transport gateway for `streamable_http` and `stdio` upstreams
 - readiness surface that already exposes PostgreSQL and Redis configuration state
 
 ## Deferred to next milestones
