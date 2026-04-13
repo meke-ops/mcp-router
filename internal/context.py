@@ -9,3 +9,12 @@ class RequestIdentity:
     tenant_supplied: bool = False
     principal_supplied: bool = False
     roles_supplied: bool = False
+
+
+@dataclass(slots=True, frozen=True)
+class RouterRequestContext:
+    request_id: str
+    trace_id: str
+    span_id: str
+    parent_span_id: str | None
+    traceparent: str

@@ -1,11 +1,12 @@
 from dataclasses import dataclass
+from time import perf_counter
 
 from internal.audit import InMemoryAuditLog
 from internal.config import Settings
-from internal.context import RequestIdentity
+from internal.context import RequestIdentity, RouterRequestContext
 from internal.mcp.errors import JsonRpcErrorCode, JsonRpcFault
 from internal.mcp.models import JsonRpcRequest, JsonRpcResponse
-from internal.policy import PolicyEngine, PolicyEvaluationContext
+from internal.policy import PolicyDecision, PolicyEngine, PolicyEvaluationContext
 from internal.registry import (
     build_registered_tool,
     InMemoryToolRegistry,
@@ -19,6 +20,13 @@ from internal.schema import (
     ToolSchemaValidationFailure,
 )
 from internal.session_manager import InMemorySessionManager, SessionRecord
+from internal.tracing import InMemoryTraceRecorder, SpanContext
+from internal.traffic_control import (
+    InMemoryTrafficController,
+    TrafficControlContext,
+    TrafficControlLease,
+    TrafficLimitDecision,
+)
 from internal.upstream import UpstreamCallResult, UpstreamTransportError, UpstreamTransportGateway
 
 
@@ -37,6 +45,8 @@ class MCPRouterService:
         tool_registry: InMemoryToolRegistry,
         policy_engine: PolicyEngine,
         audit_log: InMemoryAuditLog,
+        trace_recorder: InMemoryTraceRecorder,
+        traffic_controller: InMemoryTrafficController,
         upstream_gateway: UpstreamTransportGateway,
     ) -> None:
         self._settings = settings
@@ -44,6 +54,8 @@ class MCPRouterService:
         self._tool_registry = tool_registry
         self._policy_engine = policy_engine
         self._audit_log = audit_log
+        self._trace_recorder = trace_recorder
+        self._traffic_controller = traffic_controller
         self._upstream_gateway = upstream_gateway
         self._arguments_schema_validator = ToolArgumentsSchemaValidator()
 
@@ -52,16 +64,36 @@ class MCPRouterService:
         request: JsonRpcRequest,
         session_id: str | None,
         identity: RequestIdentity,
+        request_context: RouterRequestContext,
     ) -> DispatchResult:
         try:
             if request.method == "initialize":
-                return await self._handle_initialize(request, session_id, identity)
+                return await self._handle_initialize(
+                    request,
+                    session_id,
+                    identity,
+                    request_context,
+                )
             if request.method == "notifications/initialized":
-                return await self._handle_initialized_notification(session_id, identity)
+                return await self._handle_initialized_notification(
+                    session_id,
+                    identity,
+                    request_context,
+                )
             if request.method == "tools/list":
-                return await self._handle_tools_list(request, session_id, identity)
+                return await self._handle_tools_list(
+                    request,
+                    session_id,
+                    identity,
+                    request_context,
+                )
             if request.method == "tools/call":
-                return await self._handle_tools_call(request, session_id, identity)
+                return await self._handle_tools_call(
+                    request,
+                    session_id,
+                    identity,
+                    request_context,
+                )
             raise JsonRpcFault(
                 code=JsonRpcErrorCode.METHOD_NOT_FOUND,
                 message=f"Unsupported MCP method: {request.method}",
@@ -84,6 +116,7 @@ class MCPRouterService:
         request: JsonRpcRequest,
         session_id: str | None,
         identity: RequestIdentity,
+        request_context: RouterRequestContext,
     ) -> DispatchResult:
         self._require_request_id(request)
         try:
@@ -98,7 +131,11 @@ class MCPRouterService:
                 code=JsonRpcErrorCode.IDENTITY_MISMATCH,
                 message="Session is already bound to a different tenant or principal.",
             ) from exc
-        await self._initialize_upstreams(session=session, request=request)
+        await self._initialize_upstreams(
+            session=session,
+            request=request,
+            request_context=request_context,
+        )
 
         return DispatchResult(
             response=JsonRpcResponse(
@@ -128,6 +165,7 @@ class MCPRouterService:
         self,
         session_id: str | None,
         identity: RequestIdentity,
+        request_context: RouterRequestContext,
     ) -> DispatchResult:
         session = await self._require_session(session_id, identity)
         await self._session_manager.touch(session.session_id)
@@ -140,6 +178,8 @@ class MCPRouterService:
                     params={},
                 ),
                 session=session,
+                request_context=request_context,
+                parent_span_id=request_context.span_id,
             )
         return DispatchResult(response=None, session_id=session.session_id, status_code=202)
 
@@ -148,10 +188,15 @@ class MCPRouterService:
         request: JsonRpcRequest,
         session_id: str | None,
         identity: RequestIdentity,
+        request_context: RouterRequestContext,
     ) -> DispatchResult:
         self._require_request_id(request)
         session = await self._require_session(session_id, identity)
-        tools = await self._list_available_tools(request=request, session=session)
+        tools = await self._list_available_tools(
+            request=request,
+            session=session,
+            request_context=request_context,
+        )
 
         return DispatchResult(
             response=JsonRpcResponse(
@@ -166,6 +211,7 @@ class MCPRouterService:
         request: JsonRpcRequest,
         session_id: str | None,
         identity: RequestIdentity,
+        request_context: RouterRequestContext,
     ) -> DispatchResult:
         self._require_request_id(request)
         session = await self._require_session(session_id, identity)
@@ -183,54 +229,251 @@ class MCPRouterService:
                 message="tools/call arguments must be an object.",
             )
 
-        registered_tool = await self._tool_registry.get_tool(tool_name)
-        if registered_tool is None:
-            await self._refresh_tools_from_upstreams(request=request, session=session)
-            registered_tool = await self._tool_registry.get_tool(tool_name)
-        if registered_tool is None:
-            raise JsonRpcFault(
-                code=JsonRpcErrorCode.TOOL_NOT_FOUND,
-                message=f"Tool is not registered: {tool_name}",
-            )
-        policy_decision = await self._evaluate_tool_policy(
-            request=request,
-            session=session,
-            registered_tool=registered_tool,
-        )
-        if policy_decision.effect == "deny":
-            return DispatchResult(
-                response=JsonRpcResponse(
-                    id=request.id,
-                    error={
-                        "code": int(JsonRpcErrorCode.POLICY_DENIED),
-                        "message": policy_decision.reason,
-                        "data": policy_decision.to_payload(),
-                    },
-                ),
+        started_at = perf_counter()
+        registered_tool: RegisteredTool | None = None
+        traffic_decision: TrafficLimitDecision | None = None
+        lease: TrafficControlLease | None = None
+        resolved_tool_name = tool_name.strip()
+
+        async with self._trace_recorder.span(
+            name="mcp.tools.call",
+            trace_id=request_context.trace_id,
+            parent_span_id=request_context.span_id,
+            attributes={
+                "mcp.method": request.method,
+                "mcp.tool_name": resolved_tool_name,
+                "tenant.id": session.tenant_id,
+                "principal.id": session.principal_id,
+            },
+        ) as tool_call_span:
+            await self._audit_log.record_event(
+                trace_id=request_context.trace_id,
+                span_id=tool_call_span.span_id,
                 session_id=session.session_id,
-                status_code=403,
+                request_id=request.id,
+                tenant_id=session.tenant_id,
+                principal_id=session.principal_id,
+                tool_name=resolved_tool_name,
+                event_type="tool_call.started",
+                detail={"roles": list(session.roles)},
             )
-        self._validate_tool_arguments(registered_tool=registered_tool, arguments=arguments)
+            try:
+                registered_tool = await self._tool_registry.get_tool(resolved_tool_name)
+                if registered_tool is None:
+                    await self._refresh_tools_from_upstreams(
+                        request=request,
+                        session=session,
+                        request_context=request_context,
+                    )
+                    registered_tool = await self._tool_registry.get_tool(resolved_tool_name)
+                if registered_tool is None:
+                    raise JsonRpcFault(
+                        code=JsonRpcErrorCode.TOOL_NOT_FOUND,
+                        message=f"Tool is not registered: {resolved_tool_name}",
+                    )
 
-        upstream_server = await self._tool_registry.get_upstream_server(
-            registered_tool.binding.server_id
-        )
-        if upstream_server is None:
-            raise JsonRpcFault(
-                code=JsonRpcErrorCode.UPSTREAM_NOT_CONFIGURED,
-                message=f"Tool binding is missing an upstream server: {tool_name}",
-            )
+                traffic_decision, lease = await self._check_traffic_limits(
+                    session=session,
+                    request=request,
+                    request_context=request_context,
+                    registered_tool=registered_tool,
+                    parent_span_context=tool_call_span,
+                )
+                if not traffic_decision.allowed:
+                    error_code = (
+                        JsonRpcErrorCode.CONCURRENCY_LIMITED
+                        if traffic_decision.limit_type == "concurrency"
+                        else JsonRpcErrorCode.RATE_LIMITED
+                    )
+                    await self._record_tool_call_audit(
+                        request=request,
+                        session=session,
+                        request_context=request_context,
+                        span_id=tool_call_span.span_id,
+                        registered_tool=registered_tool,
+                        outcome=traffic_decision.limit_type,
+                        status_code=429,
+                        error_code=int(error_code),
+                        error_message=traffic_decision.reason,
+                        started_at=started_at,
+                        traffic_decision=traffic_decision,
+                    )
+                    return DispatchResult(
+                        response=JsonRpcResponse(
+                            id=request.id,
+                            error={
+                                "code": int(error_code),
+                                "message": traffic_decision.reason,
+                                "data": traffic_decision.to_payload(),
+                            },
+                        ),
+                        session_id=session.session_id,
+                        status_code=429,
+                    )
 
-        upstream_result = await self._send_upstream_request(
-            server=upstream_server,
-            request=request,
-            session=session,
-        )
-        return self._dispatch_result_from_upstream(
-            upstream_result=upstream_result,
-            session_id=session.session_id,
-            request_id=request.id,
-        )
+                policy_decision = await self._evaluate_tool_policy(
+                    request=request,
+                    session=session,
+                    request_context=request_context,
+                    registered_tool=registered_tool,
+                    parent_span_context=tool_call_span,
+                )
+                if policy_decision.effect == "deny":
+                    await self._record_tool_call_audit(
+                        request=request,
+                        session=session,
+                        request_context=request_context,
+                        span_id=tool_call_span.span_id,
+                        registered_tool=registered_tool,
+                        outcome="policy_denied",
+                        status_code=403,
+                        error_code=int(JsonRpcErrorCode.POLICY_DENIED),
+                        error_message=policy_decision.reason,
+                        started_at=started_at,
+                        traffic_decision=traffic_decision,
+                    )
+                    return DispatchResult(
+                        response=JsonRpcResponse(
+                            id=request.id,
+                            error={
+                                "code": int(JsonRpcErrorCode.POLICY_DENIED),
+                                "message": policy_decision.reason,
+                                "data": policy_decision.to_payload(),
+                            },
+                        ),
+                        session_id=session.session_id,
+                        status_code=403,
+                    )
+
+                self._validate_tool_arguments(
+                    registered_tool=registered_tool,
+                    arguments=arguments,
+                )
+
+                upstream_server = await self._tool_registry.get_upstream_server(
+                    registered_tool.binding.server_id
+                )
+                if upstream_server is None:
+                    raise JsonRpcFault(
+                        code=JsonRpcErrorCode.UPSTREAM_NOT_CONFIGURED,
+                        message=(
+                            f"Tool binding is missing an upstream server: {resolved_tool_name}"
+                        ),
+                    )
+
+                upstream_result = await self._send_upstream_request(
+                    server=upstream_server,
+                    request=request,
+                    session=session,
+                    request_context=request_context,
+                    parent_span_id=tool_call_span.span_id,
+                )
+                dispatch_result = self._dispatch_result_from_upstream(
+                    upstream_result=upstream_result,
+                    session_id=session.session_id,
+                    request_id=request.id,
+                )
+                response_error = (
+                    dispatch_result.response.error
+                    if dispatch_result.response is not None
+                    else None
+                )
+                outcome = "success" if response_error is None else "upstream_error"
+                event_type = (
+                    "tool_call.completed"
+                    if response_error is None
+                    else "tool_call.failed"
+                )
+                await self._audit_log.record_event(
+                    trace_id=request_context.trace_id,
+                    span_id=tool_call_span.span_id,
+                    session_id=session.session_id,
+                    request_id=request.id,
+                    tenant_id=session.tenant_id,
+                    principal_id=session.principal_id,
+                    tool_name=registered_tool.name,
+                    event_type=event_type,
+                    detail={
+                        "statusCode": dispatch_result.status_code,
+                        "jsonRpcErrorCode": (
+                            response_error.code if response_error is not None else None
+                        ),
+                    },
+                )
+                await self._record_tool_call_audit(
+                    request=request,
+                    session=session,
+                    request_context=request_context,
+                    span_id=tool_call_span.span_id,
+                    registered_tool=registered_tool,
+                    outcome=outcome,
+                    status_code=dispatch_result.status_code,
+                    error_code=(
+                        response_error.code if response_error is not None else None
+                    ),
+                    error_message=(
+                        response_error.message if response_error is not None else None
+                    ),
+                    started_at=started_at,
+                    traffic_decision=traffic_decision,
+                )
+                return dispatch_result
+            except JsonRpcFault as exc:
+                await self._audit_log.record_event(
+                    trace_id=request_context.trace_id,
+                    span_id=tool_call_span.span_id,
+                    session_id=session.session_id,
+                    request_id=request.id,
+                    tenant_id=session.tenant_id,
+                    principal_id=session.principal_id,
+                    tool_name=(
+                        registered_tool.name
+                        if registered_tool is not None
+                        else resolved_tool_name
+                    ),
+                    event_type="tool_call.failed",
+                    detail={
+                        "statusCode": 200,
+                        "jsonRpcErrorCode": int(exc.code),
+                        "message": exc.message,
+                    },
+                )
+                await self._record_tool_call_audit(
+                    request=request,
+                    session=session,
+                    request_context=request_context,
+                    span_id=tool_call_span.span_id,
+                    registered_tool=registered_tool,
+                    fallback_tool_name=resolved_tool_name,
+                    outcome=self._tool_call_outcome_from_fault(exc),
+                    status_code=200,
+                    error_code=int(exc.code),
+                    error_message=exc.message,
+                    started_at=started_at,
+                    traffic_decision=traffic_decision,
+                )
+                raise
+            finally:
+                if lease is not None and traffic_decision is not None:
+                    active_count = await lease.release()
+                    await self._audit_log.record_event(
+                        trace_id=request_context.trace_id,
+                        span_id=tool_call_span.span_id,
+                        session_id=session.session_id,
+                        request_id=request.id,
+                        tenant_id=session.tenant_id,
+                        principal_id=session.principal_id,
+                        tool_name=(
+                            registered_tool.name
+                            if registered_tool is not None
+                            else resolved_tool_name
+                        ),
+                        event_type="traffic.concurrency.released",
+                        detail={
+                            "key": traffic_decision.key,
+                            "activeCount": active_count,
+                        },
+                    )
 
     def _require_request_id(self, request: JsonRpcRequest) -> None:
         if request.id is None:
@@ -243,7 +486,7 @@ class MCPRouterService:
         self,
         session_id: str | None,
         identity: RequestIdentity,
-    ):
+    ) -> SessionRecord:
         if session_id is None:
             raise JsonRpcFault(
                 code=JsonRpcErrorCode.SESSION_REQUIRED,
@@ -289,6 +532,7 @@ class MCPRouterService:
         self,
         session: SessionRecord,
         request: JsonRpcRequest,
+        request_context: RouterRequestContext,
     ) -> None:
         for upstream_server in await self._tool_registry.list_upstream_servers():
             upstream_result = await self._send_upstream_request(
@@ -300,6 +544,8 @@ class MCPRouterService:
                     params=request.params,
                 ),
                 session=session,
+                request_context=request_context,
+                parent_span_id=request_context.span_id,
             )
             if upstream_result.response is not None and upstream_result.response.error is not None:
                 raise JsonRpcFault(
@@ -312,18 +558,24 @@ class MCPRouterService:
         self,
         request: JsonRpcRequest,
         session: SessionRecord,
+        request_context: RouterRequestContext,
     ) -> list[RegisteredTool]:
         upstream_servers = await self._tool_registry.list_upstream_servers()
         if not upstream_servers:
             return await self._tool_registry.list_registered_tools()
 
-        await self._refresh_tools_from_upstreams(request=request, session=session)
+        await self._refresh_tools_from_upstreams(
+            request=request,
+            session=session,
+            request_context=request_context,
+        )
         return await self._tool_registry.list_registered_tools()
 
     async def _refresh_tools_from_upstreams(
         self,
         request: JsonRpcRequest,
         session: SessionRecord,
+        request_context: RouterRequestContext,
     ) -> None:
         discovered_tools: list[RegisteredTool] = []
         seen_tool_names: dict[str, str] = {}
@@ -338,11 +590,15 @@ class MCPRouterService:
                     params={},
                 ),
                 session=session,
+                request_context=request_context,
+                parent_span_id=request_context.span_id,
             )
             if upstream_result.response is None:
                 raise JsonRpcFault(
                     code=JsonRpcErrorCode.INTERNAL_ERROR,
-                    message=f"Upstream returned no tools/list response: {upstream_server.server_id}",
+                    message=(
+                        f"Upstream returned no tools/list response: {upstream_server.server_id}"
+                    ),
                 )
             if upstream_result.response.error is not None:
                 raise JsonRpcFault(
@@ -356,7 +612,9 @@ class MCPRouterService:
             if not isinstance(raw_tools, list):
                 raise JsonRpcFault(
                     code=JsonRpcErrorCode.INTERNAL_ERROR,
-                    message=f"Upstream tools/list payload is invalid: {upstream_server.server_id}",
+                    message=(
+                        f"Upstream tools/list payload is invalid: {upstream_server.server_id}"
+                    ),
                 )
 
             for raw_tool in raw_tools:
@@ -449,7 +707,9 @@ class MCPRouterService:
         except ToolSchemaValidationFailure as exc:
             raise JsonRpcFault(
                 code=JsonRpcErrorCode.INVALID_PARAMS,
-                message=f"tools/call arguments do not match schema for {registered_tool.name}",
+                message=(
+                    f"tools/call arguments do not match schema for {registered_tool.name}"
+                ),
                 data={
                     **exc.to_payload(),
                     "tool": registered_tool.name,
@@ -457,72 +717,184 @@ class MCPRouterService:
                 },
             ) from exc
 
+    async def _check_traffic_limits(
+        self,
+        request: JsonRpcRequest,
+        session: SessionRecord,
+        request_context: RouterRequestContext,
+        registered_tool: RegisteredTool,
+        parent_span_context: SpanContext,
+    ) -> tuple[TrafficLimitDecision, TrafficControlLease | None]:
+        async with self._trace_recorder.span(
+            name="traffic.check",
+            trace_id=request_context.trace_id,
+            parent_span_id=parent_span_context.span_id,
+            attributes={
+                "mcp.tool_name": registered_tool.name,
+                "tenant.id": session.tenant_id,
+                "principal.id": session.principal_id,
+            },
+        ) as traffic_span:
+            decision, lease = await self._traffic_controller.acquire(
+                TrafficControlContext(
+                    tenant_id=session.tenant_id,
+                    principal_id=session.principal_id,
+                    tool_name=registered_tool.name,
+                )
+            )
+            event_type = (
+                "traffic.allowed"
+                if decision.allowed
+                else f"traffic.{decision.limit_type}.rejected"
+            )
+            await self._audit_log.record_event(
+                trace_id=request_context.trace_id,
+                span_id=traffic_span.span_id,
+                session_id=session.session_id,
+                request_id=request.id,
+                tenant_id=session.tenant_id,
+                principal_id=session.principal_id,
+                tool_name=registered_tool.name,
+                event_type=event_type,
+                detail=decision.to_payload(),
+            )
+            return decision, lease
+
     async def _evaluate_tool_policy(
         self,
         request: JsonRpcRequest,
         session: SessionRecord,
+        request_context: RouterRequestContext,
         registered_tool: RegisteredTool,
-    ):
-        decision = self._policy_engine.evaluate(
-            PolicyEvaluationContext(
+        parent_span_context: SpanContext,
+    ) -> PolicyDecision:
+        async with self._trace_recorder.span(
+            name="policy.evaluate",
+            trace_id=request_context.trace_id,
+            parent_span_id=parent_span_context.span_id,
+            attributes={
+                "mcp.tool_name": registered_tool.name,
+                "mcp.tool_version": registered_tool.version,
+                "mcp.server_id": registered_tool.binding.server_id,
+            },
+        ) as policy_span:
+            decision = self._policy_engine.evaluate(
+                PolicyEvaluationContext(
+                    tenant_id=session.tenant_id,
+                    principal_id=session.principal_id,
+                    roles=session.roles,
+                    tool_name=registered_tool.name,
+                    tool_version=registered_tool.version,
+                    server_id=registered_tool.binding.server_id,
+                )
+            )
+            await self._audit_log.record_policy_decision(
+                trace_id=request_context.trace_id,
+                span_id=policy_span.span_id,
+                session_id=session.session_id,
+                request_id=request.id,
                 tenant_id=session.tenant_id,
                 principal_id=session.principal_id,
                 roles=session.roles,
                 tool_name=registered_tool.name,
                 tool_version=registered_tool.version,
                 server_id=registered_tool.binding.server_id,
+                decision=decision.effect,
+                reason=decision.reason,
+                rule_id=decision.rule_id,
+                is_default=decision.is_default,
+                obligations=decision.obligations,
             )
-        )
-        await self._audit_log.record_policy_decision(
-            session_id=session.session_id,
-            request_id=request.id,
-            tenant_id=session.tenant_id,
-            principal_id=session.principal_id,
-            roles=session.roles,
-            tool_name=registered_tool.name,
-            tool_version=registered_tool.version,
-            server_id=registered_tool.binding.server_id,
-            decision=decision.effect,
-            reason=decision.reason,
-            rule_id=decision.rule_id,
-            is_default=decision.is_default,
-            obligations=decision.obligations,
-        )
-        return decision
+            await self._audit_log.record_event(
+                trace_id=request_context.trace_id,
+                span_id=policy_span.span_id,
+                session_id=session.session_id,
+                request_id=request.id,
+                tenant_id=session.tenant_id,
+                principal_id=session.principal_id,
+                tool_name=registered_tool.name,
+                event_type=f"policy.{decision.effect}",
+                detail=decision.to_payload(),
+            )
+            return decision
 
     async def _send_upstream_request(
         self,
         server: UpstreamServerDefinition,
         request: JsonRpcRequest,
         session: SessionRecord,
+        request_context: RouterRequestContext,
+        parent_span_id: str,
     ) -> UpstreamCallResult:
         upstream_session_id = await self._session_manager.get_upstream_session(
             session_id=session.session_id,
             server_id=server.server_id,
         )
-        try:
-            upstream_result = await self._upstream_gateway.send(
-                server=server,
-                request=request,
-                session_id=upstream_session_id,
+        async with self._trace_recorder.span(
+            name="upstream.call",
+            trace_id=request_context.trace_id,
+            parent_span_id=parent_span_id,
+            attributes={
+                "mcp.method": request.method,
+                "mcp.server_id": server.server_id,
+                "mcp.transport": server.transport,
+            },
+        ) as upstream_span:
+            try:
+                upstream_result = await self._upstream_gateway.send(
+                    server=server,
+                    request=request,
+                    session_id=upstream_session_id,
+                    tenant_id=session.tenant_id,
+                    principal_id=session.principal_id,
+                    request_id=request_context.request_id,
+                    traceparent=upstream_span.traceparent,
+                )
+            except UpstreamTransportError as exc:
+                await self._audit_log.record_event(
+                    trace_id=request_context.trace_id,
+                    span_id=upstream_span.span_id,
+                    session_id=session.session_id,
+                    request_id=request.id,
+                    tenant_id=session.tenant_id,
+                    principal_id=session.principal_id,
+                    tool_name=request.params.get("name")
+                    if isinstance(request.params.get("name"), str)
+                    else None,
+                    event_type="upstream.call.failed",
+                    detail={"serverId": server.server_id, "detail": str(exc)},
+                )
+                raise JsonRpcFault(
+                    code=JsonRpcErrorCode.UPSTREAM_UNAVAILABLE,
+                    message=f"Upstream transport failed: {server.server_id}",
+                    data={"detail": str(exc)},
+                ) from exc
+
+            if upstream_result.upstream_session_id:
+                await self._session_manager.set_upstream_session(
+                    session_id=session.session_id,
+                    server_id=server.server_id,
+                    upstream_session_id=upstream_result.upstream_session_id,
+                )
+
+            await self._audit_log.record_event(
+                trace_id=request_context.trace_id,
+                span_id=upstream_span.span_id,
+                session_id=session.session_id,
+                request_id=request.id,
                 tenant_id=session.tenant_id,
                 principal_id=session.principal_id,
+                tool_name=request.params.get("name")
+                if isinstance(request.params.get("name"), str)
+                else None,
+                event_type="upstream.call.completed",
+                detail={
+                    "serverId": server.server_id,
+                    "transport": server.transport,
+                    "upstreamSessionId": upstream_result.upstream_session_id,
+                },
             )
-        except UpstreamTransportError as exc:
-            raise JsonRpcFault(
-                code=JsonRpcErrorCode.UPSTREAM_UNAVAILABLE,
-                message=f"Upstream transport failed: {server.server_id}",
-                data={"detail": str(exc)},
-            ) from exc
-
-        if upstream_result.upstream_session_id:
-            await self._session_manager.set_upstream_session(
-                session_id=session.session_id,
-                server_id=server.server_id,
-                upstream_session_id=upstream_result.upstream_session_id,
-            )
-
-        return upstream_result
+            return upstream_result
 
     def _dispatch_result_from_upstream(
         self,
@@ -550,3 +922,72 @@ class MCPRouterService:
             ),
             session_id=session_id,
         )
+
+    async def _record_tool_call_audit(
+        self,
+        *,
+        request: JsonRpcRequest,
+        session: SessionRecord,
+        request_context: RouterRequestContext,
+        span_id: str | None,
+        outcome: str,
+        status_code: int,
+        error_code: int | None,
+        error_message: str | None,
+        started_at: float,
+        registered_tool: RegisteredTool | None = None,
+        fallback_tool_name: str | None = None,
+        traffic_decision: TrafficLimitDecision | None = None,
+    ) -> None:
+        tool_name = (
+            registered_tool.name
+            if registered_tool is not None
+            else (fallback_tool_name or "unknown")
+        )
+        tool_version = (
+            registered_tool.version if registered_tool is not None else "unresolved"
+        )
+        server_id = (
+            registered_tool.binding.server_id
+            if registered_tool is not None
+            else "unresolved"
+        )
+        await self._audit_log.record_tool_call(
+            trace_id=request_context.trace_id,
+            span_id=span_id,
+            session_id=session.session_id,
+            request_id=request.id,
+            tenant_id=session.tenant_id,
+            principal_id=session.principal_id,
+            roles=session.roles,
+            tool_name=tool_name,
+            tool_version=tool_version,
+            server_id=server_id,
+            outcome=outcome,
+            status_code=status_code,
+            error_code=error_code,
+            error_message=error_message,
+            duration_ms=round((perf_counter() - started_at) * 1000, 3),
+            rate_limit_key=traffic_decision.key if traffic_decision is not None else None,
+            remaining_tokens=(
+                traffic_decision.remaining_tokens
+                if traffic_decision is not None
+                else None
+            ),
+            concurrency_limit=(
+                traffic_decision.concurrency_limit
+                if traffic_decision is not None
+                else None
+            ),
+        )
+
+    def _tool_call_outcome_from_fault(self, fault: JsonRpcFault) -> str:
+        if int(fault.code) == int(JsonRpcErrorCode.INVALID_PARAMS):
+            return "schema_invalid"
+        if int(fault.code) == int(JsonRpcErrorCode.TOOL_NOT_FOUND):
+            return "tool_not_found"
+        if int(fault.code) == int(JsonRpcErrorCode.UPSTREAM_NOT_CONFIGURED):
+            return "routing_error"
+        if int(fault.code) == int(JsonRpcErrorCode.UPSTREAM_UNAVAILABLE):
+            return "upstream_error"
+        return "error"

@@ -83,6 +83,8 @@ for raw_line in sys.stdin:
                         "echo": arguments.get("text", ""),
                         "tenantId": os.getenv("MCP_ROUTER_TENANT_ID"),
                         "principalId": os.getenv("MCP_ROUTER_PRINCIPAL_ID"),
+                        "requestId": os.getenv("MCP_ROUTER_REQUEST_ID"),
+                        "traceparent": os.getenv("TRACEPARENT"),
                     },
                 },
             )

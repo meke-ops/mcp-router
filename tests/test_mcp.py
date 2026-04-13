@@ -1,5 +1,9 @@
 import asyncio
 
+import httpx
+import pytest
+from fastapi.testclient import TestClient
+
 
 def test_initialize_creates_session(client):
     response = client.post(
@@ -511,3 +515,238 @@ def test_policy_decisions_are_audited_for_allow_and_deny(integrated_client):
             "parameters": {"channel": "security"},
         }
     ]
+
+
+def test_tools_call_rate_limit_returns_429_and_audit_event(integrated_app_factory):
+    app = integrated_app_factory(
+        tool_call_rate_limit_capacity=1,
+        tool_call_rate_limit_refill_rate=0.0,
+        tool_call_concurrency_limit=4,
+    )
+
+    with TestClient(app) as client:
+        initialize_response = client.post(
+            "/mcp",
+            headers={
+                "X-Tenant-Id": "tenant-a",
+                "X-Principal-Id": "user-1",
+            },
+            json={
+                "jsonrpc": "2.0",
+                "id": "25",
+                "method": "initialize",
+                "params": {},
+            },
+        )
+        session_id = initialize_response.headers["MCP-Session-Id"]
+
+        first_response = client.post(
+            "/mcp",
+            headers={"MCP-Session-Id": session_id},
+            json={
+                "jsonrpc": "2.0",
+                "id": "26",
+                "method": "tools/call",
+                "params": {
+                    "name": "demo.http.reverse",
+                    "arguments": {"text": "first"},
+                },
+            },
+        )
+        second_response = client.post(
+            "/mcp",
+            headers={"MCP-Session-Id": session_id},
+            json={
+                "jsonrpc": "2.0",
+                "id": "27",
+                "method": "tools/call",
+                "params": {
+                    "name": "demo.http.reverse",
+                    "arguments": {"text": "second"},
+                },
+            },
+        )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 429
+    assert second_response.json()["error"]["code"] == -32010
+    assert second_response.json()["error"]["data"]["limitType"] == "rate_limit"
+
+    tool_call_records = asyncio.run(app.state.services.audit_log.list_tool_calls())
+    audit_event_records = asyncio.run(app.state.services.audit_log.list_audit_events())
+
+    rate_limited_record = next(
+        record for record in tool_call_records if str(record.request_id) == "27"
+    )
+    assert rate_limited_record.outcome == "rate_limit"
+    assert rate_limited_record.status_code == 429
+    assert rate_limited_record.error_code == -32010
+
+    rejected_event = next(
+        event
+        for event in audit_event_records
+        if str(event.request_id) == "27"
+        and event.event_type == "traffic.rate_limit.rejected"
+    )
+    assert rejected_event.detail["limitType"] == "rate_limit"
+
+
+def test_tools_call_propagates_traceparent_and_records_trace_chain(integrated_client):
+    initialize_response = integrated_client.post(
+        "/mcp",
+        headers={
+            "X-Tenant-Id": "tenant-a",
+            "X-Principal-Id": "user-1",
+        },
+        json={
+            "jsonrpc": "2.0",
+            "id": "28",
+            "method": "initialize",
+            "params": {},
+        },
+    )
+
+    inbound_traceparent = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"
+    response = integrated_client.post(
+        "/mcp",
+        headers={
+            "MCP-Session-Id": initialize_response.headers["MCP-Session-Id"],
+            "traceparent": inbound_traceparent,
+        },
+        json={
+            "jsonrpc": "2.0",
+            "id": "29",
+            "method": "tools/call",
+            "params": {
+                "name": "demo.http.reverse",
+                "arguments": {"text": "trace"},
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    trace_id = "0123456789abcdef0123456789abcdef"
+    assert response.headers["X-Trace-Id"] == trace_id
+    assert response.headers["traceparent"].startswith(f"00-{trace_id}-")
+    structured_content = response.json()["result"]["structuredContent"]
+    assert structured_content["traceparent"].startswith(f"00-{trace_id}-")
+    assert structured_content["requestId"] == response.headers["X-Request-Id"]
+
+    trace_records = asyncio.run(integrated_client.app.state.services.trace_recorder.list_spans())
+    trace_spans = [record for record in trace_records if record.trace_id == trace_id]
+    span_by_name = {record.name: record for record in trace_spans}
+
+    assert "mcp.tools.call" in span_by_name
+    assert "traffic.check" in span_by_name
+    assert "policy.evaluate" in span_by_name
+    assert "upstream.call" in span_by_name
+    assert span_by_name["traffic.check"].parent_span_id == span_by_name["mcp.tools.call"].span_id
+    assert span_by_name["policy.evaluate"].parent_span_id == span_by_name["mcp.tools.call"].span_id
+    assert span_by_name["upstream.call"].parent_span_id == span_by_name["mcp.tools.call"].span_id
+
+    tool_call_records = asyncio.run(integrated_client.app.state.services.audit_log.list_tool_calls())
+    traced_record = next(record for record in tool_call_records if str(record.request_id) == "29")
+    assert traced_record.trace_id == trace_id
+    assert traced_record.outcome == "success"
+
+
+@pytest.mark.anyio
+async def test_tools_call_concurrency_gate_returns_429_and_audit_event(
+    integrated_app_factory,
+):
+    app = integrated_app_factory(
+        tool_call_rate_limit_capacity=10,
+        tool_call_rate_limit_refill_rate=10.0,
+        tool_call_concurrency_limit=1,
+    )
+    transport = httpx.ASGITransport(app=app)
+
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            initialize_response = await client.post(
+                "/mcp",
+                headers={
+                    "X-Tenant-Id": "tenant-a",
+                    "X-Principal-Id": "user-1",
+                },
+                json={
+                    "jsonrpc": "2.0",
+                    "id": "30",
+                    "method": "initialize",
+                    "params": {},
+                },
+            )
+            session_id = initialize_response.headers["MCP-Session-Id"]
+
+            await client.post(
+                "/mcp",
+                headers={"MCP-Session-Id": session_id},
+                json={
+                    "jsonrpc": "2.0",
+                    "id": "31",
+                    "method": "tools/list",
+                    "params": {},
+                },
+            )
+
+            async def slow_call():
+                return await client.post(
+                    "/mcp",
+                    headers={"MCP-Session-Id": session_id},
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": "32",
+                        "method": "tools/call",
+                        "params": {
+                            "name": "demo.http.reverse",
+                            "arguments": {"text": "slow", "delayMs": 200},
+                        },
+                    },
+                )
+
+            async def concurrent_call():
+                await asyncio.sleep(0.05)
+                return await client.post(
+                    "/mcp",
+                    headers={"MCP-Session-Id": session_id},
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": "33",
+                        "method": "tools/call",
+                        "params": {
+                            "name": "demo.http.reverse",
+                            "arguments": {"text": "fast"},
+                        },
+                    },
+                )
+
+            first_response, second_response = await asyncio.gather(
+                slow_call(),
+                concurrent_call(),
+            )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 429
+    assert second_response.json()["error"]["code"] == -32011
+    assert second_response.json()["error"]["data"]["limitType"] == "concurrency"
+
+    tool_call_records = await app.state.services.audit_log.list_tool_calls()
+    audit_event_records = await app.state.services.audit_log.list_audit_events()
+
+    concurrency_limited_record = next(
+        record for record in tool_call_records if str(record.request_id) == "33"
+    )
+    assert concurrency_limited_record.outcome == "concurrency"
+    assert concurrency_limited_record.status_code == 429
+    assert concurrency_limited_record.error_code == -32011
+
+    rejected_event = next(
+        event
+        for event in audit_event_records
+        if str(event.request_id) == "33"
+        and event.event_type == "traffic.concurrency.rejected"
+    )
+    assert rejected_event.detail["limitType"] == "concurrency"

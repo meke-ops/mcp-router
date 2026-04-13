@@ -16,6 +16,8 @@ class JsonRpcErrorCode(IntEnum):
     TOOL_NAME_CONFLICT = -32007
     IDENTITY_MISMATCH = -32008
     POLICY_DENIED = -32009
+    RATE_LIMITED = -32010
+    CONCURRENCY_LIMITED = -32011
 
 
 @dataclass(slots=True)

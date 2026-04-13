@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, Header, Response
+from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.responses import JSONResponse
 
 from api.http.dependencies import get_services
 from internal.container import ServiceContainer
-from internal.context import RequestIdentity
+from internal.context import RequestIdentity, RouterRequestContext
 from internal.mcp.models import JsonRpcRequest
 
 router = APIRouter(tags=["mcp"])
@@ -18,6 +18,7 @@ def _parse_roles_header(raw_value: str | None) -> tuple[str, ...]:
 
 @router.post("")
 async def handle_mcp(
+    http_request: Request,
     request: JsonRpcRequest,
     services: ServiceContainer = Depends(get_services),
     mcp_session_id: str | None = Header(default=None, alias="MCP-Session-Id"),
@@ -26,6 +27,7 @@ async def handle_mcp(
     x_principal_roles: str | None = Header(default=None, alias="X-Principal-Roles"),
 ) -> Response:
     parsed_roles = _parse_roles_header(x_principal_roles)
+    request_context: RouterRequestContext = http_request.state.request_context
     dispatch_result = await services.mcp_service.handle_request(
         request=request,
         session_id=mcp_session_id,
@@ -37,6 +39,7 @@ async def handle_mcp(
             principal_supplied=x_principal_id is not None,
             roles_supplied=x_principal_roles is not None,
         ),
+        request_context=request_context,
     )
 
     if dispatch_result.response is None:

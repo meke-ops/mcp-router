@@ -5,7 +5,7 @@ routing, and observability.
 
 ## Current status
 
-The repository now includes the backend work through milestone 5:
+The repository now includes the backend work through milestone 7:
 
 - FastAPI application skeleton
 - `/v1/health` and `/v1/ready` endpoints
@@ -18,7 +18,10 @@ The repository now includes the backend work through milestone 5:
 - versioned in-memory tool registry with server bindings
 - JSON Schema validation before `tools/call` routing
 - default-deny policy enforcement before `tools/call`
-- in-memory policy decision audit logging with rule and obligation capture
+- tenant/principal/tool-scoped rate limiting and concurrency gates
+- in-memory policy, tool-call, and audit-event logging
+- `traceparent` propagation from `/mcp` to upstream transports
+- in-memory span recorder for request, policy, traffic, and upstream traces
 - integration tests covering one HTTP and one stdio upstream
 
 ## Project layout
@@ -120,8 +123,38 @@ export MCP_ROUTER_POLICIES_JSON='[
 If no policy matches a `tools/call`, the router returns a deterministic default
 deny response and records the decision in the audit log.
 
+## Traffic control configuration
+
+The router applies per `tenant + principal + tool` traffic shaping for
+`tools/call`.
+
+Environment variables:
+
+```text
+MCP_ROUTER_TOOL_CALL_RATE_LIMIT_CAPACITY=60
+MCP_ROUTER_TOOL_CALL_RATE_LIMIT_REFILL_RATE=30.0
+MCP_ROUTER_TOOL_CALL_CONCURRENCY_LIMIT=8
+```
+
+Over-limit calls return `429` with a structured JSON-RPC error payload and an
+audit event describing whether the rejection came from the token bucket or the
+concurrency gate.
+
+## Trace propagation
+
+If the caller sends a `traceparent` header to `/mcp`, the router keeps the same
+`trace_id`, emits child spans for traffic checks, policy evaluation, and
+upstream routing, and forwards a child `traceparent` to HTTP and stdio
+upstreams. The router also returns:
+
+```text
+X-Request-Id: <router-request-id>
+X-Trace-Id: <trace-id>
+traceparent: <router-root-span>
+```
+
 ## Next backend steps
 
-- replace in-memory session management with Redis-backed lifecycle management
-- add Redis-backed rate limiting and concurrency gates
-- wire PostgreSQL, Redis, tracing, and audit storage into readiness checks
+- add fallback chains and circuit breaker behavior
+- move audit, tracing, session, and traffic stores to external backends
+- expose audit/query/control-plane APIs and operational dashboards

@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 import sys
 
@@ -81,6 +82,11 @@ def create_http_upstream_app() -> FastAPI:
             default=None,
             alias="X-MCP-Router-Principal-Id",
         ),
+        x_mcp_router_request_id: str | None = Header(
+            default=None,
+            alias="X-MCP-Router-Request-Id",
+        ),
+        traceparent: str | None = Header(default=None, alias="traceparent"),
     ) -> dict:
         method = payload.get("method")
         request_id = payload.get("id")
@@ -127,6 +133,7 @@ def create_http_upstream_app() -> FastAPI:
                                 "type": "object",
                                 "properties": {
                                     "text": {"type": "string"},
+                                    "delayMs": {"type": "integer"},
                                 },
                                 "required": ["text"],
                             },
@@ -157,6 +164,9 @@ def create_http_upstream_app() -> FastAPI:
                     },
                 }
             text = arguments.get("text", "")
+            delay_ms = arguments.get("delayMs", 0)
+            if isinstance(delay_ms, int) and delay_ms > 0:
+                await asyncio.sleep(delay_ms / 1000)
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
@@ -174,6 +184,8 @@ def create_http_upstream_app() -> FastAPI:
                         "upstreamSessionId": mcp_session_id,
                         "tenantId": x_mcp_router_tenant_id,
                         "principalId": x_mcp_router_principal_id,
+                        "requestId": x_mcp_router_request_id,
+                        "traceparent": traceparent,
                     },
                 },
             }
@@ -190,31 +202,26 @@ def create_http_upstream_app() -> FastAPI:
     return app
 
 
-@pytest.fixture
-def client() -> TestClient:
-    app = create_app(
-        Settings(
-            app_env="test",
-            require_dependencies_for_readiness=False,
-            session_ttl_seconds=60,
-        )
-    )
-    with TestClient(app) as test_client:
-        yield test_client
+def build_test_settings(**overrides) -> Settings:
+    base_settings = {
+        "app_env": "test",
+        "require_dependencies_for_readiness": False,
+        "session_ttl_seconds": 60,
+        "tool_call_rate_limit_capacity": 10,
+        "tool_call_rate_limit_refill_rate": 10.0,
+        "tool_call_concurrency_limit": 4,
+    }
+    base_settings.update(overrides)
+    return Settings(**base_settings)
 
 
-@pytest.fixture
-def integrated_client() -> TestClient:
+def build_integrated_app(**setting_overrides) -> FastAPI:
     http_upstream_app = create_http_upstream_app()
     http_transport = httpx.ASGITransport(app=http_upstream_app)
     stdio_script = Path(__file__).parent / "fixtures" / "demo_stdio_upstream.py"
 
-    app = create_app(
-        Settings(
-            app_env="test",
-            require_dependencies_for_readiness=False,
-            session_ttl_seconds=60,
-        ),
+    return create_app(
+        build_test_settings(**setting_overrides),
         policy_rules=build_demo_policy_rules(),
         upstream_servers=[
             UpstreamServerDefinition(
@@ -233,5 +240,27 @@ def integrated_client() -> TestClient:
         },
     )
 
+
+@pytest.fixture
+def client() -> TestClient:
+    app = create_app(
+        build_test_settings()
+    )
     with TestClient(app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def integrated_app() -> FastAPI:
+    return build_integrated_app()
+
+
+@pytest.fixture
+def integrated_app_factory():
+    return build_integrated_app
+
+
+@pytest.fixture
+def integrated_client(integrated_app: FastAPI) -> TestClient:
+    with TestClient(integrated_app) as test_client:
         yield test_client

@@ -12,21 +12,50 @@ from api.http.v1.router import router as api_v1_router
 from internal.audit import InMemoryAuditLog
 from internal.config import Settings, get_settings
 from internal.container import ServiceContainer
+from internal.context import RouterRequestContext
 from internal.health import ReadinessService
 from internal.logging import configure_logging
 from internal.mcp.service import MCPRouterService
 from internal.policy import InMemoryPolicyStore, PolicyEngine, PolicyObligation, PolicyRule
 from internal.registry import InMemoryToolRegistry, UpstreamServerDefinition
 from internal.session_manager import InMemorySessionManager
+from internal.tracing import InMemoryTraceRecorder, build_inbound_span_context
+from internal.traffic_control import InMemoryTrafficController
 from internal.upstream import UpstreamTransportGateway
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request_id = request.headers.get("X-Request-Id", str(uuid4()))
+        inbound_trace_context = build_inbound_span_context(
+            request.headers.get("traceparent")
+        )
+        request_context = RouterRequestContext(
+            request_id=request_id,
+            trace_id=inbound_trace_context.trace_id,
+            span_id=inbound_trace_context.span_id,
+            parent_span_id=inbound_trace_context.parent_span_id,
+            traceparent=inbound_trace_context.traceparent,
+        )
         request.state.request_id = request_id
-        response = await call_next(request)
+        request.state.request_context = request_context
+        services = getattr(request.app.state, "services", None)
+        if services is None:
+            response = await call_next(request)
+        else:
+            async with services.trace_recorder.span(
+                name=f"http {request.method} {request.url.path}",
+                span_context=inbound_trace_context,
+                attributes={
+                    "http.method": request.method,
+                    "http.route": request.url.path,
+                    "request.id": request_id,
+                },
+            ):
+                response = await call_next(request)
         response.headers["X-Request-Id"] = request_id
+        response.headers["X-Trace-Id"] = request_context.trace_id
+        response.headers["traceparent"] = request_context.traceparent
         return response
 
 
@@ -44,6 +73,12 @@ def create_service_container(
     policy_store = InMemoryPolicyStore(rules=resolved_policy_rules)
     policy_engine = PolicyEngine(store=policy_store)
     audit_log = InMemoryAuditLog()
+    trace_recorder = InMemoryTraceRecorder()
+    traffic_controller = InMemoryTrafficController(
+        rate_limit_capacity=settings.tool_call_rate_limit_capacity,
+        rate_limit_refill_rate=settings.tool_call_rate_limit_refill_rate,
+        concurrency_limit=settings.tool_call_concurrency_limit,
+    )
     upstream_gateway = UpstreamTransportGateway(
         http_transport_overrides=http_transport_overrides,
     )
@@ -53,6 +88,8 @@ def create_service_container(
         tool_registry=tool_registry,
         policy_engine=policy_engine,
         audit_log=audit_log,
+        trace_recorder=trace_recorder,
+        traffic_controller=traffic_controller,
         upstream_gateway=upstream_gateway,
     )
 
@@ -64,6 +101,8 @@ def create_service_container(
         policy_store=policy_store,
         policy_engine=policy_engine,
         audit_log=audit_log,
+        trace_recorder=trace_recorder,
+        traffic_controller=traffic_controller,
         upstream_gateway=upstream_gateway,
         mcp_service=mcp_service,
     )

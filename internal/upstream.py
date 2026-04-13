@@ -33,6 +33,8 @@ class UpstreamTransportGateway:
         session_id: str | None = None,
         tenant_id: str | None = None,
         principal_id: str | None = None,
+        request_id: str | None = None,
+        traceparent: str | None = None,
     ) -> UpstreamCallResult:
         if server.transport == "streamable_http":
             return await self._send_http(
@@ -41,6 +43,8 @@ class UpstreamTransportGateway:
                 session_id=session_id,
                 tenant_id=tenant_id,
                 principal_id=principal_id,
+                request_id=request_id,
+                traceparent=traceparent,
             )
         if server.transport == "stdio":
             return await self._send_stdio(
@@ -48,6 +52,8 @@ class UpstreamTransportGateway:
                 request=request,
                 tenant_id=tenant_id,
                 principal_id=principal_id,
+                request_id=request_id,
+                traceparent=traceparent,
             )
         raise UpstreamTransportError(f"Unsupported transport: {server.transport}")
 
@@ -58,6 +64,8 @@ class UpstreamTransportGateway:
         session_id: str | None,
         tenant_id: str | None,
         principal_id: str | None,
+        request_id: str | None,
+        traceparent: str | None,
     ) -> UpstreamCallResult:
         if not server.endpoint_url:
             raise UpstreamTransportError(
@@ -78,6 +86,10 @@ class UpstreamTransportGateway:
             headers["X-MCP-Router-Tenant-Id"] = tenant_id
         if principal_id:
             headers["X-MCP-Router-Principal-Id"] = principal_id
+        if request_id:
+            headers["X-MCP-Router-Request-Id"] = request_id
+        if traceparent:
+            headers["traceparent"] = traceparent
 
         async with httpx.AsyncClient(**client_kwargs) as client:
             try:
@@ -115,6 +127,8 @@ class UpstreamTransportGateway:
         request: JsonRpcRequest,
         tenant_id: str | None,
         principal_id: str | None,
+        request_id: str | None,
+        traceparent: str | None,
     ) -> UpstreamCallResult:
         if not server.command:
             raise UpstreamTransportError(
@@ -127,6 +141,10 @@ class UpstreamTransportGateway:
             env["MCP_ROUTER_TENANT_ID"] = tenant_id
         if principal_id:
             env["MCP_ROUTER_PRINCIPAL_ID"] = principal_id
+        if request_id:
+            env["MCP_ROUTER_REQUEST_ID"] = request_id
+        if traceparent:
+            env["TRACEPARENT"] = traceparent
         process = await asyncio.create_subprocess_exec(
             *server.command,
             stdin=asyncio.subprocess.PIPE,

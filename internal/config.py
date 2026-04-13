@@ -26,6 +26,9 @@ class Settings:
     redis_url: str | None = None
     upstreams_json: str | None = None
     policies_json: str | None = None
+    tool_call_rate_limit_capacity: int = 60
+    tool_call_rate_limit_refill_rate: float = 30.0
+    tool_call_concurrency_limit: int = 8
 
 
 @lru_cache
@@ -48,4 +51,13 @@ def get_settings() -> Settings:
         redis_url=os.getenv("MCP_ROUTER_REDIS_URL"),
         upstreams_json=os.getenv("MCP_ROUTER_UPSTREAMS_JSON"),
         policies_json=os.getenv("MCP_ROUTER_POLICIES_JSON"),
+        tool_call_rate_limit_capacity=int(
+            os.getenv("MCP_ROUTER_TOOL_CALL_RATE_LIMIT_CAPACITY", "60")
+        ),
+        tool_call_rate_limit_refill_rate=float(
+            os.getenv("MCP_ROUTER_TOOL_CALL_RATE_LIMIT_REFILL_RATE", "30.0")
+        ),
+        tool_call_concurrency_limit=int(
+            os.getenv("MCP_ROUTER_TOOL_CALL_CONCURRENCY_LIMIT", "8")
+        ),
     )
