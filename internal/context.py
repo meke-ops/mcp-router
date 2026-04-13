@@ -18,3 +18,7 @@ class RouterRequestContext:
     span_id: str
     parent_span_id: str | None
     traceparent: str
+    token_hash: str | None = None
+    authenticated_principal_id: str | None = None
+    authenticated_tenant_ids: tuple[str, ...] = ()
+    authenticated_roles: tuple[str, ...] = ()

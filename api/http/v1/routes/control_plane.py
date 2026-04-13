@@ -3,7 +3,8 @@ from dataclasses import asdict
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from api.http.dependencies import get_services
+from api.http.dependencies import require_control_plane_principal, get_services
+from internal.auth import AuthenticatedPrincipal
 from internal.container import ServiceContainer
 from internal.context import RouterRequestContext
 from internal.policy import PolicyObligation, PolicyRule
@@ -64,6 +65,7 @@ async def list_tools(
     request: Request,
     refresh: bool = Query(default=False),
     services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
 ) -> dict[str, object]:
     if refresh:
         await services.mcp_service.refresh_registry(_request_context(request))
@@ -88,6 +90,7 @@ async def list_tools(
 async def refresh_tools(
     request: Request,
     services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
 ) -> dict[str, object]:
     tools = await services.mcp_service.refresh_registry(_request_context(request))
     await _record_control_event(
@@ -104,6 +107,7 @@ async def register_tool(
     request: Request,
     payload: ToolRegistrationPayload,
     services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
 ) -> dict[str, object]:
     upstream_server = await services.tool_registry.get_upstream_server(payload.server_id)
     if upstream_server is None:
@@ -141,6 +145,7 @@ async def delete_tool(
     request: Request,
     tool_name: str,
     services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
 ) -> dict[str, object]:
     deleted = await services.tool_registry.delete_tool(tool_name)
     if deleted is None:
@@ -157,6 +162,7 @@ async def delete_tool(
 @router.get("/upstreams")
 async def list_upstreams(
     services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
 ) -> dict[str, object]:
     upstreams = await services.tool_registry.list_upstream_servers()
     return {
@@ -184,6 +190,7 @@ async def register_upstream(
     request: Request,
     payload: UpstreamRegistrationPayload,
     services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
 ) -> dict[str, object]:
     upstream = UpstreamServerDefinition(
         server_id=payload.server_id,
@@ -211,6 +218,7 @@ async def register_upstream(
 @router.get("/policies")
 async def list_policies(
     services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
 ) -> dict[str, object]:
     return {
         "items": [_serialize_policy_rule(rule) for rule in services.policy_store.list_rules()]
@@ -222,6 +230,7 @@ async def upsert_policy(
     request: Request,
     payload: PolicyRulePayload,
     services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
 ) -> dict[str, object]:
     rule = PolicyRule(
         rule_id=payload.rule_id,
@@ -256,6 +265,7 @@ async def delete_policy(
     request: Request,
     rule_id: str,
     services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
 ) -> dict[str, object]:
     deleted = await services.policy_store.delete_rule(rule_id)
     if deleted is None:
@@ -273,6 +283,7 @@ async def delete_policy(
 async def list_policy_decisions(
     limit: int = Query(default=50, ge=1, le=500),
     services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
 ) -> dict[str, object]:
     items = await services.audit_log.list_policy_decisions()
     return {"items": [_serialize_dataclass(item) for item in items[-limit:][::-1]]}
@@ -282,6 +293,7 @@ async def list_policy_decisions(
 async def list_tool_calls(
     limit: int = Query(default=50, ge=1, le=500),
     services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
 ) -> dict[str, object]:
     items = await services.audit_log.list_tool_calls()
     return {"items": [_serialize_dataclass(item) for item in items[-limit:][::-1]]}
@@ -292,6 +304,7 @@ async def list_audit_events(
     limit: int = Query(default=100, ge=1, le=500),
     event_type: str | None = Query(default=None),
     services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
 ) -> dict[str, object]:
     items = await services.audit_log.list_audit_events()
     if event_type:
@@ -303,6 +316,7 @@ async def list_audit_events(
 async def events_websocket(
     websocket: WebSocket,
     services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
 ) -> None:
     await websocket.accept()
     queue = await services.audit_log.subscribe_events()
@@ -358,8 +372,12 @@ async def _record_control_event(
         span_id=request_context.span_id,
         session_id=None,
         request_id=request_context.request_id,
-        tenant_id="control-plane",
-        principal_id="dashboard",
+        tenant_id=(
+            request_context.authenticated_tenant_ids[0]
+            if request_context.authenticated_tenant_ids
+            else "control-plane"
+        ),
+        principal_id=request_context.authenticated_principal_id or "dashboard",
         tool_name=None,
         event_type=event_type,
         detail=detail,

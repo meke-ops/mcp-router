@@ -401,6 +401,22 @@
             <button class="button-primary" id="refreshToolsButton">Refresh Registry</button>
             <button class="button-secondary" id="reloadDashboardButton">Reload Data</button>
           </div>
+          <div class="composer-grid full" style="margin-top: 18px;">
+            <label style="text-transform: none; letter-spacing: 0.04em;">
+              Bearer Token
+              <input
+                id="authTokenInput"
+                type="password"
+                placeholder="Paste JWT for protected /v1 and websocket access"
+                autocomplete="off"
+              />
+            </label>
+          </div>
+          <div class="toolbar" style="margin-top: 14px;">
+            <button class="button-secondary" id="saveAuthTokenButton" type="button">Save Token</button>
+            <button class="button-secondary" id="clearAuthTokenButton" type="button">Clear Token</button>
+            <div class="chip" id="authTokenStatus">Token optional</div>
+          </div>
         </article>
         <aside class="status-card">
           <div>
@@ -623,6 +639,7 @@
         toolCalls: [],
         events: [],
         socket: null,
+        authToken: window.sessionStorage.getItem("dashboardBearerToken") || "",
       };
 
       const toolsTable = document.getElementById("toolsTable");
@@ -637,8 +654,30 @@
           .filter(Boolean);
       }
 
-      async function fetchJson(url, options) {
-        const response = await fetch(url, options);
+      function buildHeaders(extraHeaders = {}) {
+        const headers = new Headers(extraHeaders);
+        if (state.authToken) {
+          headers.set("Authorization", `Bearer ${state.authToken}`);
+        }
+        return headers;
+      }
+
+      function renderAuthTokenStatus() {
+        const status = document.getElementById("authTokenStatus");
+        if (state.authToken) {
+          status.textContent = "Token loaded";
+          status.className = "chip good";
+          return;
+        }
+        status.textContent = "Token optional";
+        status.className = "chip";
+      }
+
+      async function fetchJson(url, options = {}) {
+        const response = await fetch(url, {
+          ...options,
+          headers: buildHeaders(options.headers || {}),
+        });
         if (!response.ok) {
           const detail = await response.text();
           throw new Error(detail || response.statusText);
@@ -763,24 +802,55 @@
       }
 
       function connectEvents() {
+        if (state.socket) {
+          const previousSocket = state.socket;
+          state.socket = null;
+          previousSocket.close();
+        }
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const socket = new WebSocket(`${protocol}//${window.location.host}/v1/events/ws`);
+        const query = new URLSearchParams();
+        if (state.authToken) {
+          query.set("access_token", state.authToken);
+        }
+        const socketUrl = `${protocol}//${window.location.host}/v1/events/ws${
+          query.toString() ? `?${query.toString()}` : ""
+        }`;
+        const socket = new WebSocket(socketUrl);
         state.socket = socket;
         socket.addEventListener("open", () => {
+          if (state.socket !== socket) {
+            return;
+          }
           document.getElementById("liveSocketStatus").textContent = "WebSocket live";
           document.getElementById("liveSocketStatus").className = "chip good";
         });
         socket.addEventListener("close", () => {
+          if (state.socket !== socket) {
+            return;
+          }
           document.getElementById("liveSocketStatus").textContent = "WebSocket reconnecting";
           document.getElementById("liveSocketStatus").className = "chip warn";
           window.setTimeout(connectEvents, 1200);
         });
         socket.addEventListener("message", (event) => {
+          if (state.socket !== socket) {
+            return;
+          }
           const payload = JSON.parse(event.data);
           state.events.unshift(payload);
           state.events = state.events.slice(0, 40);
           renderEvents();
         });
+      }
+
+      function persistAuthToken(rawToken) {
+        state.authToken = rawToken.trim();
+        if (state.authToken) {
+          window.sessionStorage.setItem("dashboardBearerToken", state.authToken);
+        } else {
+          window.sessionStorage.removeItem("dashboardBearerToken");
+        }
+        renderAuthTokenStatus();
       }
 
       document.getElementById("refreshToolsButton").addEventListener("click", async () => {
@@ -789,6 +859,31 @@
 
       document.getElementById("reloadDashboardButton").addEventListener("click", async () => {
         await loadDashboardData();
+      });
+
+      document.getElementById("saveAuthTokenButton").addEventListener("click", async () => {
+        const input = document.getElementById("authTokenInput");
+        persistAuthToken(input.value);
+        connectEvents();
+        try {
+          await loadDashboardData();
+          setStatusLine("toolFormStatus", "Dashboard token updated.");
+        } catch (error) {
+          setStatusLine("toolFormStatus", `Token saved, but load failed: ${String(error)}`, true);
+        }
+      });
+
+      document.getElementById("clearAuthTokenButton").addEventListener("click", async () => {
+        const input = document.getElementById("authTokenInput");
+        input.value = "";
+        persistAuthToken("");
+        connectEvents();
+        try {
+          await loadDashboardData();
+          setStatusLine("toolFormStatus", "Dashboard token cleared.");
+        } catch (error) {
+          setStatusLine("toolFormStatus", `Token cleared: ${String(error)}`, true);
+        }
       });
 
       document.getElementById("policyForm").addEventListener("submit", async (event) => {
@@ -864,6 +959,9 @@
           setStatusLine("toolFormStatus", String(error), true);
         }
       });
+
+      document.getElementById("authTokenInput").value = state.authToken;
+      renderAuthTokenStatus();
 
       loadDashboardData().catch((error) => {
         setStatusLine("toolFormStatus", `Initial load failed: ${String(error)}`, true);

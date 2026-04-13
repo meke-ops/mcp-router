@@ -5,6 +5,7 @@ from typing import Any
 from uuid import uuid4
 
 from internal.policy import PolicyObligation
+from internal.redaction import redact_identifier, redact_value
 
 
 @dataclass(slots=True, frozen=True)
@@ -102,13 +103,13 @@ class InMemoryAuditLog:
             session_id=session_id,
             request_id=request_id,
             tenant_id=tenant_id,
-            principal_id=principal_id,
+            principal_id=redact_identifier(principal_id),
             roles=roles,
             tool_name=tool_name,
             tool_version=tool_version,
             server_id=server_id,
             decision=decision,
-            reason=reason,
+            reason=str(redact_value(reason)),
             rule_id=rule_id,
             is_default=is_default,
             obligations=obligations,
@@ -147,7 +148,7 @@ class InMemoryAuditLog:
             session_id=session_id,
             request_id=request_id,
             tenant_id=tenant_id,
-            principal_id=principal_id,
+            principal_id=redact_identifier(principal_id),
             roles=roles,
             tool_name=tool_name,
             tool_version=tool_version,
@@ -155,7 +156,11 @@ class InMemoryAuditLog:
             outcome=outcome,
             status_code=status_code,
             error_code=error_code,
-            error_message=error_message,
+            error_message=(
+                str(redact_value(error_message))
+                if error_message is not None
+                else None
+            ),
             duration_ms=duration_ms,
             rate_limit_key=rate_limit_key,
             remaining_tokens=remaining_tokens,
@@ -186,10 +191,14 @@ class InMemoryAuditLog:
             session_id=session_id,
             request_id=request_id,
             tenant_id=tenant_id,
-            principal_id=principal_id,
+            principal_id=(
+                redact_identifier(principal_id)
+                if principal_id is not None
+                else None
+            ),
             tool_name=tool_name,
             event_type=event_type,
-            detail=dict(detail or {}),
+            detail=redact_value(dict(detail or {})),
         )
         async with self._lock:
             self._event_records.append(record)

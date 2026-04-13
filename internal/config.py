@@ -29,6 +29,12 @@ class Settings:
     tool_call_rate_limit_capacity: int = 60
     tool_call_rate_limit_refill_rate: float = 30.0
     tool_call_concurrency_limit: int = 8
+    auth_enabled: bool = False
+    jwt_secret: str | None = None
+    jwt_issuer: str | None = None
+    jwt_audience: str | None = None
+    jwt_clock_skew_seconds: int = 30
+    control_plane_allowed_roles: tuple[str, ...] = ("control-plane", "admin")
 
 
 @lru_cache
@@ -59,5 +65,20 @@ def get_settings() -> Settings:
         ),
         tool_call_concurrency_limit=int(
             os.getenv("MCP_ROUTER_TOOL_CALL_CONCURRENCY_LIMIT", "8")
+        ),
+        auth_enabled=_bool_env("MCP_ROUTER_AUTH_ENABLED", False),
+        jwt_secret=os.getenv("MCP_ROUTER_JWT_SECRET"),
+        jwt_issuer=os.getenv("MCP_ROUTER_JWT_ISSUER"),
+        jwt_audience=os.getenv("MCP_ROUTER_JWT_AUDIENCE"),
+        jwt_clock_skew_seconds=int(
+            os.getenv("MCP_ROUTER_JWT_CLOCK_SKEW_SECONDS", "30")
+        ),
+        control_plane_allowed_roles=tuple(
+            role.strip()
+            for role in os.getenv(
+                "MCP_ROUTER_CONTROL_PLANE_ALLOWED_ROLES",
+                "control-plane,admin",
+            ).split(",")
+            if role.strip()
         ),
     )
