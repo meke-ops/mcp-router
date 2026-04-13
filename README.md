@@ -5,7 +5,7 @@ routing, and observability.
 
 ## Current status
 
-The repository now includes the work through milestone 9:
+The repository now includes the work through milestone 11:
 
 - FastAPI application skeleton
 - `/v1/health` and `/v1/ready` endpoints
@@ -26,6 +26,9 @@ The repository now includes the work through milestone 9:
 - control-plane REST endpoints for tools, upstreams, policies, and audit queries
 - live event feed over WebSocket at `/v1/events/ws`
 - bundled dashboard at `/dashboard` for registry, policy, audit, and event visibility
+- JWT-backed bearer authentication with tenant-aware principal binding
+- token hashing and audit-safe PII redaction for auth and event records
+- CI-ready quality gates for lint, typecheck, unit, integration, packaging, and image build
 - integration tests covering one HTTP and one stdio upstream
 
 ## Project layout
@@ -51,10 +54,27 @@ uvicorn internal.application:app --reload
 
 The API will be available at `http://127.0.0.1:8000`.
 
-## Running tests
+## Quality checks
 
 ```bash
-pytest
+make lint
+make typecheck
+make test-unit
+make test-integration
+make package
+```
+
+To run the full local CI chain in one shot:
+
+```bash
+make ci
+```
+
+To validate the container assets locally:
+
+```bash
+make compose-config
+make image
 ```
 
 ## Control plane
@@ -209,8 +229,18 @@ When the primary route hits repeated transport failures, the router opens that
 server's circuit, records the event, and continues with the configured fallback
 chain instead of failing hard.
 
-## Next backend steps
+## Branch protection
 
-- move audit, tracing, session, and traffic stores to external backends
-- harden auth, tenant isolation, and PII handling for milestone 10
-- deepen dashboard workflows and replace in-memory stores with production backends
+GitHub Actions workflow definitions now live in
+`.github/workflows/ci.yml`. For the milestone 11 DoD, configure the `main`
+branch to require these checks before merge:
+
+- `lint`
+- `typecheck`
+- `unit-tests`
+- `integration-tests`
+- `package`
+- `image-build`
+
+Recommended next step after CI/CD is milestone 12: Kubernetes manifests,
+operational runbooks, and staging-readiness verification.

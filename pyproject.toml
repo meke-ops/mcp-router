@@ -17,12 +17,43 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "build>=1.2,<2.0",
+    "mypy>=1.13,<2.0",
     "pytest>=8.0,<9.0",
+    "ruff>=0.8,<1.0",
+    "setuptools>=68",
+    "wheel>=0.45,<1.0",
 ]
 
 [tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+    "unit: fast in-process tests with no integrated upstream dependencies",
+    "integration: tests that exercise integrated upstreams or security flows",
+]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E9", "F"]
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.12"
+files = [
+    "api/http",
+    "internal/auth.py",
+    "internal/config.py",
+    "internal/context.py",
+    "internal/redaction.py",
+]
+follow_imports = "skip"
+ignore_missing_imports = true
+warn_unused_configs = true
 
 [tool.setuptools.packages.find]
 include = ["api*", "internal*"]

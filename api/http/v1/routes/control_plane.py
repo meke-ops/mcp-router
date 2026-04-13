@@ -1,9 +1,15 @@
 from dataclasses import asdict
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from api.http.dependencies import require_control_plane_principal, get_services
+from api.http.dependencies import get_services, require_control_plane_principal
+from internal.audit import (
+    AuditEventRecord,
+    PolicyDecisionAuditRecord,
+    ToolCallAuditRecord,
+)
 from internal.auth import AuthenticatedPrincipal
 from internal.container import ServiceContainer
 from internal.context import RouterRequestContext
@@ -348,16 +354,18 @@ def _serialize_policy_rule(rule: PolicyRule) -> dict[str, object]:
     }
 
 
-def _serialize_dataclass(item: object) -> dict[str, object]:
+def _serialize_dataclass(
+    item: AuditEventRecord | PolicyDecisionAuditRecord | ToolCallAuditRecord,
+) -> dict[str, object]:
     payload = asdict(item)
     for key, value in list(payload.items()):
         if hasattr(value, "isoformat"):
             payload[key] = value.isoformat()
-    return payload
+    return cast(dict[str, object], payload)
 
 
 def _request_context(request: Request) -> RouterRequestContext:
-    return request.state.request_context
+    return cast(RouterRequestContext, request.state.request_context)
 
 
 async def _record_control_event(

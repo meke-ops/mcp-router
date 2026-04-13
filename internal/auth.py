@@ -1,4 +1,5 @@
 import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -57,9 +58,9 @@ class JwtAuthenticator:
         if header.get("alg") != "HS256":
             raise AuthenticationError("JWT alg must be HS256.")
 
-        signed_portion = f"{header_segment}.{payload_segment}".encode("utf-8")
+        signed_portion = f"{header_segment}.{payload_segment}".encode()
         expected_signature = hmac.new(
-            self._settings.jwt_secret.encode("utf-8"),
+            self._settings.jwt_secret.encode(),
             signed_portion,
             hashlib.sha256,
         ).digest()
@@ -145,5 +146,5 @@ class JwtAuthenticator:
         padding = "=" * (-len(value) % 4)
         try:
             return base64.urlsafe_b64decode(value + padding)
-        except (ValueError, base64.binascii.Error) as exc:
+        except (ValueError, binascii.Error) as exc:
             raise AuthenticationError("JWT is not valid base64url.") from exc

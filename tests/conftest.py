@@ -15,6 +15,12 @@ from internal.registry import UpstreamServerDefinition
 
 
 HTTP_UPSTREAM_SESSION_ID = "http-upstream-session"
+INTEGRATION_FIXTURES = {
+    "integrated_app",
+    "integrated_app_factory",
+    "integrated_client",
+    "http_upstream_app_factory",
+}
 
 
 def build_demo_policy_rules() -> list[PolicyRule]:
@@ -291,3 +297,14 @@ def http_upstream_app_factory():
 def integrated_client(integrated_app: FastAPI) -> TestClient:
     with TestClient(integrated_app) as test_client:
         yield test_client
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    for item in items:
+        fixture_names = set(getattr(item, "fixturenames", ()))
+        marker = (
+            pytest.mark.integration
+            if fixture_names & INTEGRATION_FIXTURES
+            else pytest.mark.unit
+        )
+        item.add_marker(marker)

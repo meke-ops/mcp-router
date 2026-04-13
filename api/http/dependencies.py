@@ -1,4 +1,5 @@
 from dataclasses import replace
+from typing import cast
 from uuid import uuid4
 
 from fastapi import Depends, HTTPException, WebSocket, WebSocketException, status
@@ -11,7 +12,7 @@ from internal.tracing import build_inbound_span_context
 
 
 def get_services(connection: HTTPConnection) -> ServiceContainer:
-    return connection.app.state.services
+    return cast(ServiceContainer, connection.app.state.services)
 
 
 async def get_authenticated_principal(
@@ -41,7 +42,7 @@ async def require_control_plane_principal(
 
 def ensure_request_context(connection: HTTPConnection) -> RouterRequestContext:
     if hasattr(connection.state, "request_context"):
-        return connection.state.request_context
+        return cast(RouterRequestContext, connection.state.request_context)
 
     request_id = connection.headers.get("X-Request-Id", str(uuid4()))
     inbound_trace_context = build_inbound_span_context(
@@ -62,7 +63,10 @@ async def _authenticate_connection(
     connection: HTTPConnection,
     services: ServiceContainer,
 ) -> AuthenticatedPrincipal:
-    cached_principal = getattr(connection.state, "auth_principal", None)
+    cached_principal = cast(
+        AuthenticatedPrincipal | None,
+        getattr(connection.state, "auth_principal", None),
+    )
     if cached_principal is not None:
         return cached_principal
 
