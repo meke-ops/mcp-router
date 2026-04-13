@@ -10,7 +10,8 @@ strictly away from the dashboard/UI scope.
 - MCP JSON-RPC ingress at `POST /mcp`
 - in-memory session manager to support `initialize`
 - tenant/principal-aware session binding with mismatch protection
-- upstream-aware in-memory registry for tool discovery and routing
+- versioned in-memory registry for tool discovery, bindings, and schema metadata
+- JSON Schema validation before upstream tool execution
 - passthrough transport gateway for `streamable_http` and `stdio` upstreams
 - readiness surface that already exposes PostgreSQL and Redis configuration state
 

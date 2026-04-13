@@ -1,3 +1,6 @@
+import asyncio
+
+
 def test_initialize_creates_session(client):
     response = client.post(
         "/mcp",
@@ -109,6 +112,12 @@ def test_tools_list_merges_http_and_stdio_upstreams(integrated_client):
     assert response.status_code == 200
     tool_names = {tool["name"] for tool in response.json()["result"]["tools"]}
     assert tool_names == {"demo.http.reverse", "demo.stdio.echo"}
+    tool_meta = {
+        tool["name"]: tool["_meta"]["router"] for tool in response.json()["result"]["tools"]
+    }
+    assert tool_meta["demo.http.reverse"]["serverId"] == "demo-http"
+    assert tool_meta["demo.stdio.echo"]["serverId"] == "demo-stdio"
+    assert tool_meta["demo.http.reverse"]["version"].startswith("sha256:")
 
 
 def test_tools_call_routes_to_http_upstream(integrated_client):
@@ -218,3 +227,70 @@ def test_session_rejects_context_mismatch(integrated_client):
 
     assert response.status_code == 200
     assert response.json()["error"]["code"] == -32008
+
+
+def test_tools_call_rejects_invalid_arguments_against_schema(integrated_client):
+    initialize_response = integrated_client.post(
+        "/mcp",
+        headers={
+            "X-Tenant-Id": "tenant-a",
+            "X-Principal-Id": "user-1",
+        },
+        json={
+            "jsonrpc": "2.0",
+            "id": "15",
+            "method": "initialize",
+            "params": {},
+        },
+    )
+
+    response = integrated_client.post(
+        "/mcp",
+        headers={"MCP-Session-Id": initialize_response.headers["MCP-Session-Id"]},
+        json={
+            "jsonrpc": "2.0",
+            "id": "16",
+            "method": "tools/call",
+            "params": {
+                "name": "demo.http.reverse",
+                "arguments": {},
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["error"]["code"] == -32602
+    assert response.json()["error"]["data"]["tool"] == "demo.http.reverse"
+    assert response.json()["error"]["data"]["toolVersion"].startswith("sha256:")
+    assert "required property" in response.json()["error"]["data"]["message"]
+
+
+def test_registry_tracks_versions_and_bindings_after_discovery(integrated_client):
+    initialize_response = integrated_client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": "17",
+            "method": "initialize",
+            "params": {},
+        },
+    )
+
+    integrated_client.post(
+        "/mcp",
+        headers={"MCP-Session-Id": initialize_response.headers["MCP-Session-Id"]},
+        json={
+            "jsonrpc": "2.0",
+            "id": "18",
+            "method": "tools/list",
+            "params": {},
+        },
+    )
+
+    registry = integrated_client.app.state.services.tool_registry
+    registered_tool = asyncio.run(registry.get_tool("demo.http.reverse"))
+
+    assert registered_tool is not None
+    assert registered_tool.binding.server_id == "demo-http"
+    assert registered_tool.binding.tool_version == registered_tool.version
+    assert registered_tool.version in registered_tool.versions

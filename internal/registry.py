@@ -1,7 +1,9 @@
 import asyncio
 from dataclasses import dataclass, field
-from typing import Literal
+import hashlib
+import json
 from typing import Any
+from typing import Literal
 
 
 TransportKind = Literal["stdio", "streamable_http"]
@@ -31,12 +33,44 @@ class ToolDefinition:
 @dataclass(slots=True, frozen=True)
 class ToolBinding:
     server_id: str
+    tool_version: str
+    timeout_seconds: float | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class ToolVersion:
+    version: str
+    definition: ToolDefinition
+    schema_digest: str
+
+    def to_mcp_payload(self) -> dict[str, Any]:
+        return self.definition.to_mcp_payload()
 
 
 @dataclass(slots=True, frozen=True)
 class RegisteredTool:
-    definition: ToolDefinition
+    name: str
+    latest_version: ToolVersion
+    versions: dict[str, ToolVersion]
     binding: ToolBinding
+
+    @property
+    def definition(self) -> ToolDefinition:
+        return self.latest_version.definition
+
+    @property
+    def version(self) -> str:
+        return self.latest_version.version
+
+    def to_mcp_payload(self) -> dict[str, Any]:
+        payload = self.latest_version.to_mcp_payload()
+        payload["_meta"] = {
+            "router": {
+                "version": self.latest_version.version,
+                "serverId": self.binding.server_id,
+            }
+        }
+        return payload
 
 
 @dataclass(slots=True, frozen=True)
@@ -47,6 +81,44 @@ class UpstreamServerDefinition:
     command: tuple[str, ...] = ()
     env: dict[str, str] = field(default_factory=dict)
     timeout_seconds: float = 10.0
+
+
+def build_tool_version(definition: ToolDefinition) -> ToolVersion:
+    canonical_payload = json.dumps(
+        {
+            "name": definition.name,
+            "description": definition.description,
+            "inputSchema": definition.input_schema,
+            "outputSchema": definition.output_schema,
+            "tags": list(definition.tags),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    schema_digest = hashlib.sha256(canonical_payload.encode("utf-8")).hexdigest()[:12]
+    return ToolVersion(
+        version=f"sha256:{schema_digest}",
+        definition=definition,
+        schema_digest=schema_digest,
+    )
+
+
+def build_registered_tool(
+    definition: ToolDefinition,
+    server_id: str,
+    timeout_seconds: float | None = None,
+) -> RegisteredTool:
+    tool_version = build_tool_version(definition)
+    return RegisteredTool(
+        name=definition.name,
+        latest_version=tool_version,
+        versions={tool_version.version: tool_version},
+        binding=ToolBinding(
+            server_id=server_id,
+            tool_version=tool_version.version,
+            timeout_seconds=timeout_seconds,
+        ),
+    )
 
 
 class InMemoryToolRegistry:
@@ -66,13 +138,17 @@ class InMemoryToolRegistry:
         async with self._lock:
             return [tool.definition for tool in self._tools.values()]
 
+    async def list_registered_tools(self) -> list[RegisteredTool]:
+        async with self._lock:
+            return list(self._tools.values())
+
     async def get_tool(self, name: str) -> RegisteredTool | None:
         async with self._lock:
             return self._tools.get(name)
 
     async def replace_tools(self, tools: list[RegisteredTool]) -> None:
         async with self._lock:
-            self._tools = {tool.definition.name: tool for tool in tools}
+            self._tools = {tool.name: tool for tool in tools}
 
     async def list_upstream_servers(self) -> list[UpstreamServerDefinition]:
         async with self._lock:

@@ -5,11 +5,16 @@ from internal.context import RequestIdentity
 from internal.mcp.errors import JsonRpcErrorCode, JsonRpcFault
 from internal.mcp.models import JsonRpcRequest, JsonRpcResponse
 from internal.registry import (
+    build_registered_tool,
     InMemoryToolRegistry,
     RegisteredTool,
-    ToolBinding,
     ToolDefinition,
     UpstreamServerDefinition,
+)
+from internal.schema import (
+    ToolArgumentsSchemaValidator,
+    ToolSchemaDefinitionFailure,
+    ToolSchemaValidationFailure,
 )
 from internal.session_manager import InMemorySessionManager, SessionRecord
 from internal.upstream import UpstreamCallResult, UpstreamTransportError, UpstreamTransportGateway
@@ -34,6 +39,7 @@ class MCPRouterService:
         self._session_manager = session_manager
         self._tool_registry = tool_registry
         self._upstream_gateway = upstream_gateway
+        self._arguments_schema_validator = ToolArgumentsSchemaValidator()
 
     async def handle_request(
         self,
@@ -178,6 +184,7 @@ class MCPRouterService:
                 code=JsonRpcErrorCode.TOOL_NOT_FOUND,
                 message=f"Tool is not registered: {tool_name}",
             )
+        self._validate_tool_arguments(registered_tool=registered_tool, arguments=arguments)
 
         upstream_server = await self._tool_registry.get_upstream_server(
             registered_tool.binding.server_id
@@ -270,13 +277,13 @@ class MCPRouterService:
         self,
         request: JsonRpcRequest,
         session: SessionRecord,
-    ) -> list[ToolDefinition]:
+    ) -> list[RegisteredTool]:
         upstream_servers = await self._tool_registry.list_upstream_servers()
         if not upstream_servers:
-            return await self._tool_registry.list_tools()
+            return await self._tool_registry.list_registered_tools()
 
         await self._refresh_tools_from_upstreams(request=request, session=session)
-        return await self._tool_registry.list_tools()
+        return await self._tool_registry.list_registered_tools()
 
     async def _refresh_tools_from_upstreams(
         self,
@@ -331,9 +338,10 @@ class MCPRouterService:
                     )
                 seen_tool_names[tool_definition.name] = upstream_server.server_id
                 discovered_tools.append(
-                    RegisteredTool(
+                    build_registered_tool(
                         definition=tool_definition,
-                        binding=ToolBinding(server_id=upstream_server.server_id),
+                        server_id=upstream_server.server_id,
+                        timeout_seconds=upstream_server.timeout_seconds,
                     )
                 )
 
@@ -382,6 +390,37 @@ class MCPRouterService:
             output_schema=output_schema,
             tags=normalized_tags,
         )
+
+    def _validate_tool_arguments(
+        self,
+        registered_tool: RegisteredTool,
+        arguments: dict,
+    ) -> None:
+        try:
+            self._arguments_schema_validator.validate(
+                schema=registered_tool.definition.input_schema,
+                arguments=arguments,
+            )
+        except ToolSchemaValidationFailure as exc:
+            raise JsonRpcFault(
+                code=JsonRpcErrorCode.INVALID_PARAMS,
+                message=f"tools/call arguments do not match schema for {registered_tool.name}",
+                data={
+                    **exc.to_payload(),
+                    "tool": registered_tool.name,
+                    "toolVersion": registered_tool.version,
+                },
+            ) from exc
+        except ToolSchemaDefinitionFailure as exc:
+            raise JsonRpcFault(
+                code=JsonRpcErrorCode.INTERNAL_ERROR,
+                message=f"Registered schema is invalid for {registered_tool.name}",
+                data={
+                    "tool": registered_tool.name,
+                    "toolVersion": registered_tool.version,
+                    "detail": exc.message,
+                },
+            ) from exc
 
     async def _send_upstream_request(
         self,

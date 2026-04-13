@@ -5,8 +5,7 @@ routing, and observability.
 
 ## Current status
 
-The repository now includes the backend bootstrap for milestone 1 and the first
-working slice of milestone 2:
+The repository now includes the backend work through milestone 4:
 
 - FastAPI application skeleton
 - `/v1/health` and `/v1/ready` endpoints
@@ -15,6 +14,8 @@ working slice of milestone 2:
 - upstream passthrough for `initialize`, `tools/list`, and `tools/call`
 - HTTP upstream session propagation through `MCP-Session-Id`
 - tenant/principal binding via `X-Tenant-Id` and `X-Principal-Id`
+- versioned in-memory tool registry with server bindings
+- JSON Schema validation before `tools/call` routing
 - integration tests covering one HTTP and one stdio upstream
 
 ## Project layout
@@ -79,5 +80,5 @@ different tenant or principal for that session, the router rejects the request.
 ## Next backend steps
 
 - replace in-memory session management with Redis-backed lifecycle management
-- introduce registry persistence, schema validation, and policy enforcement
+- introduce registry persistence and policy enforcement
 - wire PostgreSQL, Redis, tracing, and audit storage into readiness checks
