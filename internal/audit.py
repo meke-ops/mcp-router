@@ -72,6 +72,7 @@ class InMemoryAuditLog:
         self._policy_records: list[PolicyDecisionAuditRecord] = []
         self._tool_call_records: list[ToolCallAuditRecord] = []
         self._event_records: list[AuditEventRecord] = []
+        self._event_subscribers: set[asyncio.Queue[AuditEventRecord]] = set()
         self._lock = asyncio.Lock()
 
     async def record_policy_decision(
@@ -192,6 +193,9 @@ class InMemoryAuditLog:
         )
         async with self._lock:
             self._event_records.append(record)
+            subscribers = list(self._event_subscribers)
+        for subscriber in subscribers:
+            subscriber.put_nowait(record)
         return record
 
     async def list_policy_decisions(self) -> list[PolicyDecisionAuditRecord]:
@@ -205,3 +209,13 @@ class InMemoryAuditLog:
     async def list_audit_events(self) -> list[AuditEventRecord]:
         async with self._lock:
             return list(self._event_records)
+
+    async def subscribe_events(self) -> asyncio.Queue[AuditEventRecord]:
+        queue: asyncio.Queue[AuditEventRecord] = asyncio.Queue()
+        async with self._lock:
+            self._event_subscribers.add(queue)
+        return queue
+
+    async def unsubscribe_events(self, queue: asyncio.Queue[AuditEventRecord]) -> None:
+        async with self._lock:
+            self._event_subscribers.discard(queue)

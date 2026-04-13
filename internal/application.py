@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from api.http.dashboard import router as dashboard_router
 from api.http.mcp import router as mcp_router
 from api.http.v1.router import router as api_v1_router
 from internal.audit import InMemoryAuditLog
@@ -246,6 +247,7 @@ def create_app(
 
     app.include_router(api_v1_router, prefix=app_settings.api_v1_prefix)
     app.include_router(mcp_router, prefix=app_settings.mcp_prefix)
+    app.include_router(dashboard_router)
 
     return app
 

@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MCP Router Control Room</title>
+    <style>
+      :root {
+        --bg: #f4efe5;
+        --bg-ink: #19130f;
+        --panel: rgba(255, 248, 238, 0.84);
+        --panel-strong: rgba(255, 250, 244, 0.96);
+        --line: rgba(48, 29, 17, 0.14);
+        --accent: #b44f2f;
+        --accent-2: #176b5d;
+        --warning: #8f2d1f;
+        --shadow: 0 24px 60px rgba(48, 29, 17, 0.12);
+        --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+        --sans: "Avenir Next", "Segoe UI", "Trebuchet MS", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: var(--sans);
+        color: var(--bg-ink);
+        background:
+          radial-gradient(circle at top left, rgba(180, 79, 47, 0.18), transparent 32%),
+          radial-gradient(circle at top right, rgba(23, 107, 93, 0.12), transparent 28%),
+          linear-gradient(180deg, #f8f2e9 0%, var(--bg) 50%, #efe6d8 100%);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(25, 19, 15, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(25, 19, 15, 0.035) 1px, transparent 1px);
+        background-size: 28px 28px;
+        pointer-events: none;
+        mask-image: radial-gradient(circle at center, black 34%, transparent 100%);
+      }
+
+      main {
+        max-width: 1440px;
+        margin: 0 auto;
+        padding: 32px 24px 56px;
+      }
+
+      .masthead {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 24px;
+        align-items: stretch;
+      }
+
+      .hero,
+      .status-card,
+      .panel,
+      .composer {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        backdrop-filter: blur(14px);
+        box-shadow: var(--shadow);
+      }
+
+      .hero {
+        padding: 28px;
+        border-radius: 28px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -10% -50% auto;
+        width: 260px;
+        height: 260px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(180, 79, 47, 0.32), transparent 70%);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(25, 19, 15, 0.06);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+      }
+
+      h1,
+      h2,
+      h3 {
+        font-family: var(--serif);
+        margin: 0;
+        font-weight: 600;
+      }
+
+      h1 {
+        margin-top: 18px;
+        font-size: clamp(42px, 6vw, 86px);
+        line-height: 0.92;
+        letter-spacing: -0.04em;
+        max-width: 12ch;
+      }
+
+      .hero p {
+        max-width: 56ch;
+        font-size: 15px;
+        line-height: 1.7;
+        margin-top: 18px;
+      }
+
+      .hero-actions,
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      button,
+      .button-link {
+        appearance: none;
+        border: none;
+        border-radius: 999px;
+        padding: 12px 18px;
+        font: inherit;
+        cursor: pointer;
+        transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+      }
+
+      button:hover,
+      .button-link:hover {
+        transform: translateY(-1px);
+      }
+
+      .button-primary {
+        background: var(--bg-ink);
+        color: #f9f3ea;
+        box-shadow: 0 14px 26px rgba(25, 19, 15, 0.16);
+      }
+
+      .button-secondary {
+        background: rgba(255, 255, 255, 0.7);
+        color: var(--bg-ink);
+        border: 1px solid var(--line);
+      }
+
+      .status-card {
+        border-radius: 28px;
+        padding: 22px;
+        display: grid;
+        gap: 16px;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .metric {
+        padding: 16px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.54);
+        border: 1px solid rgba(48, 29, 17, 0.08);
+      }
+
+      .metric-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        opacity: 0.7;
+      }
+
+      .metric-value {
+        font-family: var(--serif);
+        font-size: 34px;
+        margin-top: 6px;
+      }
+
+      .shell {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 24px;
+        margin-top: 26px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 24px;
+      }
+
+      .panel,
+      .composer {
+        border-radius: 26px;
+        padding: 22px;
+      }
+
+      .panel-header,
+      .composer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .caption {
+        margin-top: 6px;
+        color: rgba(25, 19, 15, 0.72);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .table-shell {
+        overflow: auto;
+        border-radius: 18px;
+        border: 1px solid rgba(48, 29, 17, 0.08);
+        background: rgba(255, 255, 255, 0.56);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 640px;
+      }
+
+      th,
+      td {
+        padding: 13px 14px;
+        border-bottom: 1px solid rgba(48, 29, 17, 0.08);
+        text-align: left;
+        vertical-align: top;
+        font-size: 13px;
+      }
+
+      th {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: rgba(25, 19, 15, 0.68);
+        background: rgba(255, 255, 255, 0.75);
+      }
+
+      td code,
+      .chip {
+        font-family: "SFMono-Regular", "Menlo", "Monaco", monospace;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(25, 19, 15, 0.07);
+        font-size: 12px;
+      }
+
+      .chip.warn {
+        background: rgba(143, 45, 31, 0.1);
+        color: var(--warning);
+      }
+
+      .chip.good {
+        background: rgba(23, 107, 93, 0.1);
+        color: var(--accent-2);
+      }
+
+      .event-feed {
+        display: grid;
+        gap: 10px;
+        max-height: 520px;
+        overflow: auto;
+        padding-right: 4px;
+      }
+
+      .event-item {
+        border: 1px solid rgba(48, 29, 17, 0.08);
+        border-radius: 18px;
+        padding: 14px 14px 12px;
+        background: rgba(255, 255, 255, 0.58);
+      }
+
+      .event-topline {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .event-type {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: var(--accent);
+      }
+
+      .event-detail {
+        margin-top: 10px;
+        padding: 0;
+        font-size: 12px;
+        white-space: pre-wrap;
+        color: rgba(25, 19, 15, 0.78);
+      }
+
+      .composer-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .composer-grid.full {
+        grid-template-columns: 1fr;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: rgba(25, 19, 15, 0.72);
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        border-radius: 16px;
+        border: 1px solid rgba(48, 29, 17, 0.12);
+        background: rgba(255, 255, 255, 0.76);
+        padding: 12px 14px;
+        color: var(--bg-ink);
+        font: inherit;
+      }
+
+      textarea {
+        min-height: 118px;
+        resize: vertical;
+      }
+
+      .status-line {
+        min-height: 22px;
+        margin-top: 14px;
+        font-size: 13px;
+        color: rgba(25, 19, 15, 0.72);
+      }
+
+      .status-line.error {
+        color: var(--warning);
+      }
+
+      @media (max-width: 1080px) {
+        .masthead,
+        .shell {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 760px) {
+        main {
+          padding: 18px 14px 42px;
+        }
+
+        .composer-grid,
+        .metric-grid {
+          grid-template-columns: 1fr;
+        }
+
+        table {
+          min-width: 540px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="masthead">
+        <article class="hero">
+          <div class="eyebrow">MCP Router / Control Room</div>
+          <h1>Operations Atlas</h1>
+          <p>
+            A live command surface for tools, policy, audit, and event flow.
+            The panel below combines registry refresh, manual control-plane edits,
+            and a real-time telemetry ribbon on one canvas.
+          </p>
+          <div class="hero-actions">
+            <button class="button-primary" id="refreshToolsButton">Refresh Registry</button>
+            <button class="button-secondary" id="reloadDashboardButton">Reload Data</button>
+          </div>
+        </article>
+        <aside class="status-card">
+          <div>
+            <div class="eyebrow">Live posture</div>
+            <h2 style="margin-top: 12px; font-size: 34px;">Signal Board</h2>
+            <p class="caption">
+              Fast read on registry shape, policy count, event stream movement, and
+              the latest tool-call outcomes.
+            </p>
+          </div>
+          <div class="metric-grid">
+            <div class="metric">
+              <div class="metric-label">Tools</div>
+              <div class="metric-value" id="toolCount">0</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Policies</div>
+              <div class="metric-value" id="policyCount">0</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Recent Calls</div>
+              <div class="metric-value" id="toolCallCount">0</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Feed</div>
+              <div class="metric-value" id="eventCount">0</div>
+            </div>
+          </div>
+          <div class="chip" id="liveSocketStatus">WebSocket connecting</div>
+        </aside>
+      </section>
+
+      <section class="shell">
+        <div class="stack">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2 style="font-size: 30px;">Tool Registry</h2>
+                <div class="caption">
+                  Registered tools from discovery or manual registration.
+                </div>
+              </div>
+              <div class="chip" id="toolRegistrySummary">waiting</div>
+            </div>
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Server</th>
+                    <th>Version</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody id="toolsTable"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2 style="font-size: 30px;">Policies</h2>
+                <div class="caption">
+                  Ordered allow and deny rules that shape tool execution.
+                </div>
+              </div>
+              <div class="chip" id="policySummary">waiting</div>
+            </div>
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Rule</th>
+                    <th>Effect</th>
+                    <th>Priority</th>
+                    <th>Targets</th>
+                  </tr>
+                </thead>
+                <tbody id="policiesTable"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2 style="font-size: 30px;">Tool Calls</h2>
+                <div class="caption">
+                  Audit trail for runtime execution outcomes.
+                </div>
+              </div>
+              <div class="chip" id="toolCallSummary">waiting</div>
+            </div>
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Tool</th>
+                    <th>Server</th>
+                    <th>Outcome</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="toolCallsTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div class="stack">
+          <section class="composer">
+            <div class="composer-header">
+              <div>
+                <h3 style="font-size: 28px;">Policy Composer</h3>
+                <div class="caption">
+                  Add or overwrite a rule without leaving the dashboard.
+                </div>
+              </div>
+            </div>
+            <form id="policyForm">
+              <div class="composer-grid">
+                <label>Rule Id <input name="ruleId" required /></label>
+                <label>Effect
+                  <select name="effect">
+                    <option value="allow">allow</option>
+                    <option value="deny">deny</option>
+                  </select>
+                </label>
+                <label>Priority <input name="priority" type="number" value="50" /></label>
+                <label>Tool Names <input name="toolNames" placeholder="demo.http.reverse,demo.*" /></label>
+              </div>
+              <div class="composer-grid full" style="margin-top: 12px;">
+                <label>Reason <textarea name="reason" required></textarea></label>
+                <label>Tenant Ids <input name="tenantIds" placeholder="tenant-a,tenant-b" /></label>
+              </div>
+              <div class="toolbar">
+                <button class="button-primary" type="submit">Upsert Policy</button>
+              </div>
+              <div class="status-line" id="policyFormStatus"></div>
+            </form>
+          </section>
+
+          <section class="composer">
+            <div class="composer-header">
+              <div>
+                <h3 style="font-size: 28px;">Upstream Register</h3>
+                <div class="caption">
+                  Add a new route target to the in-memory registry.
+                </div>
+              </div>
+            </div>
+            <form id="upstreamForm">
+              <div class="composer-grid">
+                <label>Server Id <input name="serverId" required /></label>
+                <label>Transport
+                  <select name="transport">
+                    <option value="streamable_http">streamable_http</option>
+                    <option value="stdio">stdio</option>
+                  </select>
+                </label>
+                <label>Endpoint Url <input name="endpointUrl" placeholder="http://127.0.0.1:9001/mcp" /></label>
+                <label>Fallback Server Ids <input name="fallbackServerIds" placeholder="standby-http" /></label>
+              </div>
+              <div class="toolbar">
+                <button class="button-primary" type="submit">Register Upstream</button>
+              </div>
+              <div class="status-line" id="upstreamFormStatus"></div>
+            </form>
+          </section>
+
+          <section class="composer">
+            <div class="composer-header">
+              <div>
+                <h3 style="font-size: 28px;">Manual Tool Register</h3>
+                <div class="caption">
+                  Attach a tool definition to an existing upstream server.
+                </div>
+              </div>
+            </div>
+            <form id="toolForm">
+              <div class="composer-grid">
+                <label>Tool Name <input name="name" required /></label>
+                <label>Server Id <input name="serverId" required /></label>
+              </div>
+              <div class="composer-grid full" style="margin-top: 12px;">
+                <label>Description <input name="description" required /></label>
+                <label>Input Schema JSON
+                  <textarea name="inputSchema" required>{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}</textarea>
+                </label>
+              </div>
+              <div class="toolbar">
+                <button class="button-primary" type="submit">Register Tool</button>
+              </div>
+              <div class="status-line" id="toolFormStatus"></div>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2 style="font-size: 30px;">Event Feed</h2>
+                <div class="caption">
+                  WebSocket-fed stream of control-plane and runtime events.
+                </div>
+              </div>
+              <div class="chip good" id="eventSummary">0 live entries</div>
+            </div>
+            <div class="event-feed" id="eventFeed"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const state = {
+        tools: [],
+        policies: [],
+        toolCalls: [],
+        events: [],
+        socket: null,
+      };
+
+      const toolsTable = document.getElementById("toolsTable");
+      const policiesTable = document.getElementById("policiesTable");
+      const toolCallsTable = document.getElementById("toolCallsTable");
+      const eventFeed = document.getElementById("eventFeed");
+
+      function splitCsv(value) {
+        return value
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
+      async function fetchJson(url, options) {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+          const detail = await response.text();
+          throw new Error(detail || response.statusText);
+        }
+        return response.json();
+      }
+
+      function setStatusLine(id, message, isError = false) {
+        const node = document.getElementById(id);
+        node.textContent = message;
+        node.className = isError ? "status-line error" : "status-line";
+      }
+
+      function renderTools() {
+        document.getElementById("toolCount").textContent = String(state.tools.length);
+        document.getElementById("toolRegistrySummary").textContent = state.tools.length
+          ? state.tools.map((item) => item.serverId).slice(0, 2).join(" / ")
+          : "empty";
+        toolsTable.innerHTML = state.tools.length
+          ? state.tools
+              .map(
+                (tool) => `
+                  <tr>
+                    <td><strong>${tool.name}</strong></td>
+                    <td><code>${tool.serverId}</code></td>
+                    <td><code>${tool.version}</code></td>
+                    <td>${tool.definition.description || "-"}</td>
+                  </tr>
+                `
+              )
+              .join("")
+          : `<tr><td colspan="4">No tools registered yet.</td></tr>`;
+      }
+
+      function renderPolicies() {
+        document.getElementById("policyCount").textContent = String(state.policies.length);
+        document.getElementById("policySummary").textContent = state.policies.length
+          ? state.policies.map((item) => item.effect).slice(0, 3).join(" / ")
+          : "empty";
+        policiesTable.innerHTML = state.policies.length
+          ? state.policies
+              .map(
+                (policy) => `
+                  <tr>
+                    <td>
+                      <strong>${policy.ruleId}</strong><br />
+                      <span class="caption">${policy.reason}</span>
+                    </td>
+                    <td><span class="chip ${policy.effect === "deny" ? "warn" : "good"}">${policy.effect}</span></td>
+                    <td>${policy.priority}</td>
+                    <td>${(policy.toolNames || []).join(", ") || "all tools"}</td>
+                  </tr>
+                `
+              )
+              .join("")
+          : `<tr><td colspan="4">No policies configured.</td></tr>`;
+      }
+
+      function renderToolCalls() {
+        document.getElementById("toolCallCount").textContent = String(state.toolCalls.length);
+        document.getElementById("toolCallSummary").textContent = state.toolCalls.length
+          ? state.toolCalls[0].outcome
+          : "idle";
+        toolCallsTable.innerHTML = state.toolCalls.length
+          ? state.toolCalls
+              .map(
+                (item) => `
+                  <tr>
+                    <td>${new Date(item.recorded_at).toLocaleTimeString()}</td>
+                    <td><strong>${item.tool_name}</strong></td>
+                    <td><code>${item.server_id}</code></td>
+                    <td>${item.outcome}</td>
+                    <td>${item.status_code}</td>
+                  </tr>
+                `
+              )
+              .join("")
+          : `<tr><td colspan="5">No tool calls captured yet.</td></tr>`;
+      }
+
+      function renderEvents() {
+        document.getElementById("eventCount").textContent = String(state.events.length);
+        document.getElementById("eventSummary").textContent = `${state.events.length} live entries`;
+        eventFeed.innerHTML = state.events.length
+          ? state.events
+              .slice(0, 30)
+              .map(
+                (event) => `
+                  <article class="event-item">
+                    <div class="event-topline">
+                      <div class="event-type">${event.event_type}</div>
+                      <div class="chip">${new Date(event.recorded_at).toLocaleTimeString()}</div>
+                    </div>
+                    <pre class="event-detail">${JSON.stringify(event.detail, null, 2)}</pre>
+                  </article>
+                `
+              )
+              .join("")
+          : `<article class="event-item">Waiting for live events.</article>`;
+      }
+
+      async function loadDashboardData() {
+        const [tools, policies, toolCalls, events] = await Promise.all([
+          fetchJson("/v1/tools"),
+          fetchJson("/v1/policies"),
+          fetchJson("/v1/audit/tool-calls?limit=12"),
+          fetchJson("/v1/audit/events?limit=16"),
+        ]);
+        state.tools = tools.items;
+        state.policies = policies.items;
+        state.toolCalls = toolCalls.items;
+        state.events = events.items;
+        renderTools();
+        renderPolicies();
+        renderToolCalls();
+        renderEvents();
+      }
+
+      async function refreshRegistry() {
+        await fetchJson("/v1/tools/refresh", { method: "POST" });
+        await loadDashboardData();
+      }
+
+      function connectEvents() {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const socket = new WebSocket(`${protocol}//${window.location.host}/v1/events/ws`);
+        state.socket = socket;
+        socket.addEventListener("open", () => {
+          document.getElementById("liveSocketStatus").textContent = "WebSocket live";
+          document.getElementById("liveSocketStatus").className = "chip good";
+        });
+        socket.addEventListener("close", () => {
+          document.getElementById("liveSocketStatus").textContent = "WebSocket reconnecting";
+          document.getElementById("liveSocketStatus").className = "chip warn";
+          window.setTimeout(connectEvents, 1200);
+        });
+        socket.addEventListener("message", (event) => {
+          const payload = JSON.parse(event.data);
+          state.events.unshift(payload);
+          state.events = state.events.slice(0, 40);
+          renderEvents();
+        });
+      }
+
+      document.getElementById("refreshToolsButton").addEventListener("click", async () => {
+        await refreshRegistry();
+      });
+
+      document.getElementById("reloadDashboardButton").addEventListener("click", async () => {
+        await loadDashboardData();
+      });
+
+      document.getElementById("policyForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        try {
+          await fetchJson("/v1/policies", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              rule_id: formData.get("ruleId"),
+              effect: formData.get("effect"),
+              reason: formData.get("reason"),
+              priority: Number(formData.get("priority") || 0),
+              tenant_ids: splitCsv(String(formData.get("tenantIds") || "")),
+              tool_names: splitCsv(String(formData.get("toolNames") || "")),
+              principal_ids: [],
+              roles: [],
+              tool_versions: [],
+              obligations: [],
+            }),
+          });
+          setStatusLine("policyFormStatus", "Policy saved.");
+          await loadDashboardData();
+        } catch (error) {
+          setStatusLine("policyFormStatus", String(error), true);
+        }
+      });
+
+      document.getElementById("upstreamForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        try {
+          await fetchJson("/v1/upstreams", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              server_id: formData.get("serverId"),
+              transport: formData.get("transport"),
+              endpoint_url: formData.get("endpointUrl") || null,
+              fallback_server_ids: splitCsv(String(formData.get("fallbackServerIds") || "")),
+              command: [],
+              env: {},
+            }),
+          });
+          setStatusLine("upstreamFormStatus", "Upstream registered.");
+          await loadDashboardData();
+        } catch (error) {
+          setStatusLine("upstreamFormStatus", String(error), true);
+        }
+      });
+
+      document.getElementById("toolForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        try {
+          await fetchJson("/v1/tools/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: formData.get("name"),
+              description: formData.get("description"),
+              inputSchema: JSON.parse(String(formData.get("inputSchema"))),
+              outputSchema: null,
+              tags: [],
+              serverId: formData.get("serverId"),
+              timeoutSeconds: null,
+            }),
+          });
+          setStatusLine("toolFormStatus", "Tool registered.");
+          await loadDashboardData();
+        } catch (error) {
+          setStatusLine("toolFormStatus", String(error), true);
+        }
+      });
+
+      loadDashboardData().catch((error) => {
+        setStatusLine("toolFormStatus", `Initial load failed: ${String(error)}`, true);
+      });
+      connectEvents();
+    </script>
+  </body>
+</html>

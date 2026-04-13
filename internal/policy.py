@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import asyncio
 import fnmatch
 from typing import Any, Literal
 
@@ -63,9 +64,32 @@ class PolicyDecision:
 class InMemoryPolicyStore:
     def __init__(self, rules: list[PolicyRule] | None = None) -> None:
         self._rules = tuple(self._sorted_rules(rules or []))
+        self._lock = asyncio.Lock()
 
     def list_rules(self) -> tuple[PolicyRule, ...]:
         return self._rules
+
+    async def get_rule(self, rule_id: str) -> PolicyRule | None:
+        return next((rule for rule in self._rules if rule.rule_id == rule_id), None)
+
+    async def upsert_rule(self, rule: PolicyRule) -> PolicyRule:
+        async with self._lock:
+            next_rules = [existing for existing in self._rules if existing.rule_id != rule.rule_id]
+            next_rules.append(rule)
+            self._rules = tuple(self._sorted_rules(next_rules))
+        return rule
+
+    async def delete_rule(self, rule_id: str) -> PolicyRule | None:
+        async with self._lock:
+            existing = next((rule for rule in self._rules if rule.rule_id == rule_id), None)
+            if existing is None:
+                return None
+            self._rules = tuple(
+                self._sorted_rules(
+                    [rule for rule in self._rules if rule.rule_id != rule_id]
+                )
+            )
+            return existing
 
     def _sorted_rules(self, rules: list[PolicyRule]) -> list[PolicyRule]:
         return sorted(rules, key=lambda rule: (-rule.priority, rule.rule_id))

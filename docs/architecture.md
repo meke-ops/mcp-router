@@ -19,10 +19,12 @@ on the MCP data plane and its supporting backend services.
 - retry-aware fallback chains and in-memory circuit breaker state
 - passthrough transport gateway for `streamable_http` and `stdio` upstreams
 - readiness surface that already exposes PostgreSQL and Redis configuration state
+- control-plane REST and WebSocket endpoints for registry, policy, and audit operations
+- bundled browser dashboard served from the FastAPI application
 
 ## Deferred to next milestones
 
 - PostgreSQL-backed registry and audit storage
 - Redis-backed session lifecycle and traffic control
 - external trace export, metrics, and dashboards
-- control-plane API and dashboard workflows
+- production auth hardening and tenant security barriers

@@ -5,7 +5,7 @@ routing, and observability.
 
 ## Current status
 
-The repository now includes the backend work through milestone 8:
+The repository now includes the work through milestone 9:
 
 - FastAPI application skeleton
 - `/v1/health` and `/v1/ready` endpoints
@@ -23,6 +23,9 @@ The repository now includes the backend work through milestone 8:
 - `traceparent` propagation from `/mcp` to upstream transports
 - in-memory span recorder for request, policy, traffic, and upstream traces
 - retry-aware upstream fallback chains with in-memory circuit breakers
+- control-plane REST endpoints for tools, upstreams, policies, and audit queries
+- live event feed over WebSocket at `/v1/events/ws`
+- bundled dashboard at `/dashboard` for registry, policy, audit, and event visibility
 - integration tests covering one HTTP and one stdio upstream
 
 ## Project layout
@@ -52,6 +55,27 @@ The API will be available at `http://127.0.0.1:8000`.
 
 ```bash
 pytest
+```
+
+## Control plane
+
+The control plane now exposes:
+
+```text
+GET    /v1/tools
+POST   /v1/tools/refresh
+POST   /v1/tools/register
+DELETE /v1/tools/{tool_name}
+GET    /v1/upstreams
+POST   /v1/upstreams
+GET    /v1/policies
+POST   /v1/policies
+DELETE /v1/policies/{rule_id}
+GET    /v1/audit/policy-decisions
+GET    /v1/audit/tool-calls
+GET    /v1/audit/events
+WS     /v1/events/ws
+GET    /dashboard
 ```
 
 ## Demo upstream configuration
@@ -188,5 +212,5 @@ chain instead of failing hard.
 ## Next backend steps
 
 - move audit, tracing, session, and traffic stores to external backends
-- expose audit/query/control-plane APIs and operational dashboards
-- start the control-plane API and dashboard work for milestone 9
+- harden auth, tenant isolation, and PII handling for milestone 10
+- deepen dashboard workflows and replace in-memory stores with production backends

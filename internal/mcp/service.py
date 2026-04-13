@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from time import perf_counter
+from uuid import uuid4
 
 from internal.audit import InMemoryAuditLog
 from internal.config import Settings
@@ -113,6 +114,43 @@ class MCPRouterService:
                 ),
                 session_id=session_id,
             )
+
+    async def refresh_registry(
+        self,
+        request_context: RouterRequestContext,
+        *,
+        tenant_id: str = "control-plane",
+        principal_id: str = "dashboard",
+        roles: tuple[str, ...] = ("control-plane",),
+    ) -> list[RegisteredTool]:
+        session = await self._session_manager.get_or_create(
+            session_id=None,
+            tenant_id=tenant_id,
+            principal_id=principal_id,
+            roles=roles,
+        )
+        bootstrap_request = JsonRpcRequest(
+            jsonrpc="2.0",
+            id=f"control-init-{uuid4()}",
+            method="initialize",
+            params={},
+        )
+        discovery_request = JsonRpcRequest(
+            jsonrpc="2.0",
+            id=f"control-list-{uuid4()}",
+            method="tools/list",
+            params={},
+        )
+        await self._initialize_upstreams(
+            session=session,
+            request=bootstrap_request,
+            request_context=request_context,
+        )
+        return await self._list_available_tools(
+            request=discovery_request,
+            session=session,
+            request_context=request_context,
+        )
 
     async def _handle_initialize(
         self,

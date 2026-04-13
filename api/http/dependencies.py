@@ -1,7 +1,7 @@
-from fastapi import Request
+from starlette.requests import HTTPConnection
 
 from internal.container import ServiceContainer
 
 
-def get_services(request: Request) -> ServiceContainer:
-    return request.app.state.services
+def get_services(connection: HTTPConnection) -> ServiceContainer:
+    return connection.app.state.services

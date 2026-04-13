@@ -132,7 +132,9 @@ class InMemoryToolRegistry:
         tools: list[RegisteredTool] | None = None,
         upstream_servers: list[UpstreamServerDefinition] | None = None,
     ) -> None:
-        self._tools = {tool.definition.name: tool for tool in tools or []}
+        initial_tools = {tool.definition.name: tool for tool in tools or []}
+        self._discovered_tools = dict(initial_tools)
+        self._manual_tools: dict[str, RegisteredTool] = {}
         self._upstream_servers = {
             upstream_server.server_id: upstream_server
             for upstream_server in upstream_servers or []
@@ -141,19 +143,28 @@ class InMemoryToolRegistry:
 
     async def list_tools(self) -> list[ToolDefinition]:
         async with self._lock:
-            return [tool.definition for tool in self._tools.values()]
+            return [tool.definition for tool in self._merged_tools().values()]
 
     async def list_registered_tools(self) -> list[RegisteredTool]:
         async with self._lock:
-            return list(self._tools.values())
+            return list(self._merged_tools().values())
 
     async def get_tool(self, name: str) -> RegisteredTool | None:
         async with self._lock:
-            return self._tools.get(name)
+            return self._manual_tools.get(name) or self._discovered_tools.get(name)
 
     async def replace_tools(self, tools: list[RegisteredTool]) -> None:
         async with self._lock:
-            self._tools = {tool.name: tool for tool in tools}
+            self._discovered_tools = {tool.name: tool for tool in tools}
+
+    async def upsert_tool(self, tool: RegisteredTool) -> RegisteredTool:
+        async with self._lock:
+            self._manual_tools[tool.name] = tool
+            return tool
+
+    async def delete_tool(self, name: str) -> RegisteredTool | None:
+        async with self._lock:
+            return self._manual_tools.pop(name, None)
 
     async def list_upstream_servers(self) -> list[UpstreamServerDefinition]:
         async with self._lock:
@@ -170,3 +181,14 @@ class InMemoryToolRegistry:
     async def get_upstream_server(self, server_id: str) -> UpstreamServerDefinition | None:
         async with self._lock:
             return self._upstream_servers.get(server_id)
+
+    async def upsert_upstream_server(
+        self,
+        upstream_server: UpstreamServerDefinition,
+    ) -> UpstreamServerDefinition:
+        async with self._lock:
+            self._upstream_servers[upstream_server.server_id] = upstream_server
+            return upstream_server
+
+    def _merged_tools(self) -> dict[str, RegisteredTool]:
+        return {**self._discovered_tools, **self._manual_tools}
