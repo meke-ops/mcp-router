@@ -9,6 +9,7 @@ class SessionRecord:
     session_id: str
     tenant_id: str
     principal_id: str
+    roles: tuple[str, ...]
     created_at: datetime
     expires_at: datetime
     upstream_sessions: dict[str, str] = field(default_factory=dict)
@@ -35,11 +36,17 @@ class InMemorySessionManager:
         session_id: str | None,
         tenant_id: str,
         principal_id: str,
+        roles: tuple[str, ...],
     ) -> SessionRecord:
         if session_id:
             existing = await self.get(session_id)
             if existing is not None:
-                self._assert_context(existing, tenant_id=tenant_id, principal_id=principal_id)
+                self._assert_context(
+                    existing,
+                    tenant_id=tenant_id,
+                    principal_id=principal_id,
+                    roles=roles,
+                )
                 return await self.touch(session_id)
 
         async with self._lock:
@@ -48,6 +55,7 @@ class InMemorySessionManager:
                 session_id=str(uuid4()),
                 tenant_id=tenant_id,
                 principal_id=principal_id,
+                roles=roles,
                 created_at=now,
                 expires_at=now + self._ttl,
             )
@@ -89,8 +97,13 @@ class InMemorySessionManager:
         session: SessionRecord,
         tenant_id: str,
         principal_id: str,
+        roles: tuple[str, ...],
     ) -> None:
-        if session.tenant_id != tenant_id or session.principal_id != principal_id:
+        if (
+            session.tenant_id != tenant_id
+            or session.principal_id != principal_id
+            or session.roles != roles
+        ):
             raise ValueError(
                 "Session context mismatch."
             )

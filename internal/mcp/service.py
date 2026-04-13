@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 
+from internal.audit import InMemoryAuditLog
 from internal.config import Settings
 from internal.context import RequestIdentity
 from internal.mcp.errors import JsonRpcErrorCode, JsonRpcFault
 from internal.mcp.models import JsonRpcRequest, JsonRpcResponse
+from internal.policy import PolicyEngine, PolicyEvaluationContext
 from internal.registry import (
     build_registered_tool,
     InMemoryToolRegistry,
@@ -33,11 +35,15 @@ class MCPRouterService:
         settings: Settings,
         session_manager: InMemorySessionManager,
         tool_registry: InMemoryToolRegistry,
+        policy_engine: PolicyEngine,
+        audit_log: InMemoryAuditLog,
         upstream_gateway: UpstreamTransportGateway,
     ) -> None:
         self._settings = settings
         self._session_manager = session_manager
         self._tool_registry = tool_registry
+        self._policy_engine = policy_engine
+        self._audit_log = audit_log
         self._upstream_gateway = upstream_gateway
         self._arguments_schema_validator = ToolArgumentsSchemaValidator()
 
@@ -85,6 +91,7 @@ class MCPRouterService:
                 session_id=session_id,
                 tenant_id=identity.tenant_id,
                 principal_id=identity.principal_id,
+                roles=identity.roles,
             )
         except ValueError as exc:
             raise JsonRpcFault(
@@ -105,6 +112,7 @@ class MCPRouterService:
                     "identity": {
                         "tenantId": session.tenant_id,
                         "principalId": session.principal_id,
+                        "roles": list(session.roles),
                     },
                     "capabilities": {
                         "tools": {
@@ -184,6 +192,24 @@ class MCPRouterService:
                 code=JsonRpcErrorCode.TOOL_NOT_FOUND,
                 message=f"Tool is not registered: {tool_name}",
             )
+        policy_decision = await self._evaluate_tool_policy(
+            request=request,
+            session=session,
+            registered_tool=registered_tool,
+        )
+        if policy_decision.effect == "deny":
+            return DispatchResult(
+                response=JsonRpcResponse(
+                    id=request.id,
+                    error={
+                        "code": int(JsonRpcErrorCode.POLICY_DENIED),
+                        "message": policy_decision.reason,
+                        "data": policy_decision.to_payload(),
+                    },
+                ),
+                session_id=session.session_id,
+                status_code=403,
+            )
         self._validate_tool_arguments(registered_tool=registered_tool, arguments=arguments)
 
         upstream_server = await self._tool_registry.get_upstream_server(
@@ -246,6 +272,15 @@ class MCPRouterService:
                 data={
                     "expectedPrincipalId": session.principal_id,
                     "receivedPrincipalId": identity.principal_id,
+                },
+            )
+        if identity.roles_supplied and identity.roles != session.roles:
+            raise JsonRpcFault(
+                code=JsonRpcErrorCode.IDENTITY_MISMATCH,
+                message="X-Principal-Roles does not match the bound session roles.",
+                data={
+                    "expectedRoles": list(session.roles),
+                    "receivedRoles": list(identity.roles),
                 },
             )
         return session
@@ -401,16 +436,6 @@ class MCPRouterService:
                 schema=registered_tool.definition.input_schema,
                 arguments=arguments,
             )
-        except ToolSchemaValidationFailure as exc:
-            raise JsonRpcFault(
-                code=JsonRpcErrorCode.INVALID_PARAMS,
-                message=f"tools/call arguments do not match schema for {registered_tool.name}",
-                data={
-                    **exc.to_payload(),
-                    "tool": registered_tool.name,
-                    "toolVersion": registered_tool.version,
-                },
-            ) from exc
         except ToolSchemaDefinitionFailure as exc:
             raise JsonRpcFault(
                 code=JsonRpcErrorCode.INTERNAL_ERROR,
@@ -421,6 +446,49 @@ class MCPRouterService:
                     "detail": exc.message,
                 },
             ) from exc
+        except ToolSchemaValidationFailure as exc:
+            raise JsonRpcFault(
+                code=JsonRpcErrorCode.INVALID_PARAMS,
+                message=f"tools/call arguments do not match schema for {registered_tool.name}",
+                data={
+                    **exc.to_payload(),
+                    "tool": registered_tool.name,
+                    "toolVersion": registered_tool.version,
+                },
+            ) from exc
+
+    async def _evaluate_tool_policy(
+        self,
+        request: JsonRpcRequest,
+        session: SessionRecord,
+        registered_tool: RegisteredTool,
+    ):
+        decision = self._policy_engine.evaluate(
+            PolicyEvaluationContext(
+                tenant_id=session.tenant_id,
+                principal_id=session.principal_id,
+                roles=session.roles,
+                tool_name=registered_tool.name,
+                tool_version=registered_tool.version,
+                server_id=registered_tool.binding.server_id,
+            )
+        )
+        await self._audit_log.record_policy_decision(
+            session_id=session.session_id,
+            request_id=request.id,
+            tenant_id=session.tenant_id,
+            principal_id=session.principal_id,
+            roles=session.roles,
+            tool_name=registered_tool.name,
+            tool_version=registered_tool.version,
+            server_id=registered_tool.binding.server_id,
+            decision=decision.effect,
+            reason=decision.reason,
+            rule_id=decision.rule_id,
+            is_default=decision.is_default,
+            obligations=decision.obligations,
+        )
+        return decision
 
     async def _send_upstream_request(
         self,

@@ -15,6 +15,7 @@ class JsonRpcErrorCode(IntEnum):
     UPSTREAM_UNAVAILABLE = -32006
     TOOL_NAME_CONFLICT = -32007
     IDENTITY_MISMATCH = -32008
+    POLICY_DENIED = -32009
 
 
 @dataclass(slots=True)

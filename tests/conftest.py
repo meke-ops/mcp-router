@@ -8,10 +8,61 @@ from fastapi.testclient import TestClient
 
 from internal.application import create_app
 from internal.config import Settings
+from internal.policy import PolicyObligation, PolicyRule
 from internal.registry import UpstreamServerDefinition
 
 
 HTTP_UPSTREAM_SESSION_ID = "http-upstream-session"
+
+
+def build_demo_policy_rules() -> list[PolicyRule]:
+    return [
+        PolicyRule(
+            rule_id="deny-blocked-principal",
+            effect="deny",
+            reason="Principal is blocked from invoking tools in this tenant.",
+            priority=100,
+            tenant_ids=("tenant-a",),
+            principal_ids=("blocked-user",),
+            tool_names=("demo.*",),
+            obligations=(
+                PolicyObligation(
+                    obligation_type="notify",
+                    parameters={"channel": "security"},
+                ),
+            ),
+        ),
+        PolicyRule(
+            rule_id="allow-http-for-user-1",
+            effect="allow",
+            reason="Principal is allowed to use the HTTP demo tool.",
+            priority=50,
+            tenant_ids=("tenant-a",),
+            principal_ids=("user-1",),
+            tool_names=("demo.http.reverse",),
+            obligations=(
+                PolicyObligation(
+                    obligation_type="audit",
+                    parameters={"level": "full"},
+                ),
+            ),
+        ),
+        PolicyRule(
+            rule_id="allow-stdio-for-ops-role",
+            effect="allow",
+            reason="Ops role may use stdio demo tools.",
+            priority=50,
+            tenant_ids=("tenant-a",),
+            roles=("ops",),
+            tool_names=("demo.stdio.echo",),
+            obligations=(
+                PolicyObligation(
+                    obligation_type="audit",
+                    parameters={"level": "full"},
+                ),
+            ),
+        ),
+    ]
 
 
 def create_http_upstream_app() -> FastAPI:
@@ -164,6 +215,7 @@ def integrated_client() -> TestClient:
             require_dependencies_for_readiness=False,
             session_ttl_seconds=60,
         ),
+        policy_rules=build_demo_policy_rules(),
         upstream_servers=[
             UpstreamServerDefinition(
                 server_id="demo-http",
