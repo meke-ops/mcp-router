@@ -1,4 +1,4 @@
-.PHONY: install dev lint typecheck test test-unit test-integration package image compose-config ci
+.PHONY: install dev lint typecheck test test-unit test-integration package image compose-config k8s-render ci
 
 PYTHON ?= python3
 PIP := $(PYTHON) -m pip
@@ -33,4 +33,7 @@ image:
 compose-config:
 	docker compose -f deploy/docker-compose.yml config >/dev/null
 
-ci: lint typecheck test-unit test-integration package
+k8s-render:
+	kubectl kustomize deploy/k8s/overlays/staging >/dev/null
+
+ci: lint typecheck test-unit test-integration package k8s-render

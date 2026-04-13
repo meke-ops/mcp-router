@@ -101,6 +101,17 @@ jobs:
           name: python-dist
           path: dist/*
 
+  k8s-manifests:
+    name: k8s-manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.32.7
+      - name: Render staging manifests
+        run: make k8s-render
+
   image-build:
     name: image-build
     runs-on: ubuntu-latest

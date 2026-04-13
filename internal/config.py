@@ -20,10 +20,13 @@ class Settings:
     host: str = "0.0.0.0"
     port: int = 8000
     log_level: str = "INFO"
+    log_format: str = "plain"
     session_ttl_seconds: int = 1800
     require_dependencies_for_readiness: bool = False
+    readiness_probe_timeout_seconds: float = 1.5
     postgres_dsn: str | None = None
     redis_url: str | None = None
+    metrics_enabled: bool = True
     upstreams_json: str | None = None
     policies_json: str | None = None
     tool_call_rate_limit_capacity: int = 60
@@ -48,13 +51,18 @@ def get_settings() -> Settings:
         host=os.getenv("MCP_ROUTER_HOST", "0.0.0.0"),
         port=int(os.getenv("MCP_ROUTER_PORT", "8000")),
         log_level=os.getenv("MCP_ROUTER_LOG_LEVEL", "INFO"),
+        log_format=os.getenv("MCP_ROUTER_LOG_FORMAT", "plain"),
         session_ttl_seconds=int(os.getenv("MCP_ROUTER_SESSION_TTL_SECONDS", "1800")),
         require_dependencies_for_readiness=_bool_env(
             "MCP_ROUTER_REQUIRE_DEPENDENCIES_FOR_READINESS",
             False,
         ),
+        readiness_probe_timeout_seconds=float(
+            os.getenv("MCP_ROUTER_READINESS_PROBE_TIMEOUT_SECONDS", "1.5")
+        ),
         postgres_dsn=os.getenv("MCP_ROUTER_POSTGRES_DSN"),
         redis_url=os.getenv("MCP_ROUTER_REDIS_URL"),
+        metrics_enabled=_bool_env("MCP_ROUTER_METRICS_ENABLED", True),
         upstreams_json=os.getenv("MCP_ROUTER_UPSTREAMS_JSON"),
         policies_json=os.getenv("MCP_ROUTER_POLICIES_JSON"),
         tool_call_rate_limit_capacity=int(

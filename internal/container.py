@@ -4,6 +4,7 @@ from internal.audit import InMemoryAuditLog
 from internal.config import Settings
 from internal.health import ReadinessService
 from internal.mcp.service import MCPRouterService
+from internal.metrics import InMemoryMetricsRecorder
 from internal.policy import InMemoryPolicyStore, PolicyEngine
 from internal.resilience import InMemoryCircuitBreakerStore
 from internal.registry import InMemoryToolRegistry
@@ -17,6 +18,7 @@ from internal.upstream import UpstreamTransportGateway
 class ServiceContainer:
     settings: Settings
     readiness_service: ReadinessService
+    metrics_recorder: InMemoryMetricsRecorder
     session_manager: InMemorySessionManager
     tool_registry: InMemoryToolRegistry
     policy_store: InMemoryPolicyStore

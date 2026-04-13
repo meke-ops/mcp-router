@@ -15,6 +15,7 @@ make test-unit
 make test-integration
 make package
 make image
+make k8s-render
 ```
 
 `make ci` runs the Python quality chain without container build. `make
@@ -29,6 +30,7 @@ Protect the `main` branch by requiring these status checks:
 - `unit-tests`
 - `integration-tests`
 - `package`
+- `k8s-manifests`
 - `image-build`
 
 ## Notes

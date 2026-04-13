@@ -5,7 +5,7 @@ routing, and observability.
 
 ## Current status
 
-The repository now includes the work through milestone 11:
+The repository now includes the work through milestone 12:
 
 - FastAPI application skeleton
 - `/v1/health` and `/v1/ready` endpoints
@@ -29,6 +29,9 @@ The repository now includes the work through milestone 11:
 - JWT-backed bearer authentication with tenant-aware principal binding
 - token hashing and audit-safe PII redaction for auth and event records
 - CI-ready quality gates for lint, typecheck, unit, integration, packaging, and image build
+- active readiness probes for PostgreSQL and Redis when readiness gating is enabled
+- Prometheus-compatible metrics at `/metrics`
+- Kubernetes base + staging manifests, network policies, and staging runbook
 - integration tests covering one HTTP and one stdio upstream
 
 ## Project layout
@@ -62,6 +65,7 @@ make typecheck
 make test-unit
 make test-integration
 make package
+make k8s-render
 ```
 
 To run the full local CI chain in one shot:
@@ -76,6 +80,19 @@ To validate the container assets locally:
 make compose-config
 make image
 ```
+
+## Operations endpoints
+
+The router now exposes the following operational endpoints:
+
+```text
+GET /v1/health
+GET /v1/ready
+GET /metrics
+```
+
+`/v1/ready` performs active TCP dependency probes for PostgreSQL and Redis when
+`MCP_ROUTER_REQUIRE_DEPENDENCIES_FOR_READINESS=true`.
 
 ## Control plane
 
@@ -240,7 +257,18 @@ branch to require these checks before merge:
 - `unit-tests`
 - `integration-tests`
 - `package`
+- `k8s-manifests`
 - `image-build`
 
-Recommended next step after CI/CD is milestone 12: Kubernetes manifests,
-operational runbooks, and staging-readiness verification.
+## Kubernetes deployment
+
+Staging-ready Kubernetes assets now live under
+`deploy/k8s/base` and `deploy/k8s/overlays/staging`.
+
+- base manifests define the router deployment, service, service account, and
+  runtime configuration
+- the staging overlay adds ingress, Postgres, Redis, PVC, and network policies
+- secret example manifests document the required secret keys without storing real values
+
+For the step-by-step staging workflow, use
+[`docs/runbooks/staging.md`](docs/runbooks/staging.md).

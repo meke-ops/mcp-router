@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
 import json
+import logging
+from time import perf_counter
 from uuid import uuid4
 
 import httpx
@@ -9,6 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from api.http.dashboard import router as dashboard_router
 from api.http.mcp import router as mcp_router
+from api.http.ops import router as ops_router
 from api.http.v1.router import router as api_v1_router
 from internal.audit import InMemoryAuditLog
 from internal.config import Settings, get_settings
@@ -17,6 +20,7 @@ from internal.context import RouterRequestContext
 from internal.health import ReadinessService
 from internal.logging import configure_logging
 from internal.mcp.service import MCPRouterService
+from internal.metrics import InMemoryMetricsRecorder
 from internal.policy import InMemoryPolicyStore, PolicyEngine, PolicyObligation, PolicyRule
 from internal.resilience import InMemoryCircuitBreakerStore
 from internal.registry import InMemoryToolRegistry, UpstreamServerDefinition
@@ -28,6 +32,7 @@ from internal.upstream import UpstreamTransportGateway
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        started_at = perf_counter()
         request_id = request.headers.get("X-Request-Id", str(uuid4()))
         inbound_trace_context = build_inbound_span_context(
             request.headers.get("traceparent")
@@ -55,6 +60,28 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 },
             ):
                 response = await call_next(request)
+
+        route = request.scope.get("route")
+        route_path = getattr(route, "path", request.url.path)
+        duration_seconds = perf_counter() - started_at
+        if services is not None and services.settings.metrics_enabled:
+            await services.metrics_recorder.record_http_request(
+                method=request.method,
+                path=route_path,
+                status_code=response.status_code,
+                duration_seconds=duration_seconds,
+            )
+        logging.getLogger("mcp_router.http").info(
+            "http_request_completed",
+            extra={
+                "method": request.method,
+                "path": route_path,
+                "status_code": response.status_code,
+                "duration_ms": round(duration_seconds * 1000, 3),
+                "request_id": request_id,
+                "trace_id": request_context.trace_id,
+            },
+        )
         response.headers["X-Request-Id"] = request_id
         response.headers["X-Trace-Id"] = request_context.trace_id
         response.headers["traceparent"] = request_context.traceparent
@@ -72,6 +99,7 @@ def create_service_container(
     session_manager = InMemorySessionManager(ttl_seconds=settings.session_ttl_seconds)
     tool_registry = InMemoryToolRegistry(upstream_servers=resolved_upstream_servers)
     readiness_service = ReadinessService(settings=settings)
+    metrics_recorder = InMemoryMetricsRecorder(settings=settings)
     policy_store = InMemoryPolicyStore(rules=resolved_policy_rules)
     policy_engine = PolicyEngine(store=policy_store)
     circuit_breaker_store = InMemoryCircuitBreakerStore()
@@ -100,6 +128,7 @@ def create_service_container(
     return ServiceContainer(
         settings=settings,
         readiness_service=readiness_service,
+        metrics_recorder=metrics_recorder,
         session_manager=session_manager,
         tool_registry=tool_registry,
         policy_store=policy_store,
@@ -219,7 +248,7 @@ def create_app(
     http_transport_overrides: dict[str, httpx.AsyncBaseTransport] | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
-    configure_logging(app_settings.log_level)
+    configure_logging(app_settings.log_level, app_settings.log_format)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -248,6 +277,7 @@ def create_app(
     app.include_router(api_v1_router, prefix=app_settings.api_v1_prefix)
     app.include_router(mcp_router, prefix=app_settings.mcp_prefix)
     app.include_router(dashboard_router)
+    app.include_router(ops_router)
 
     return app
 

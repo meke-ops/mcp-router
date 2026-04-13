@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mcp-router-staging
+
+resources:
+  - ../../base
+  - namespace.yaml
+  - ingress.yaml
+  - postgres-pvc.yaml
+  - postgres-deployment.yaml
+  - postgres-service.yaml
+  - redis-deployment.yaml
+  - redis-service.yaml
+  - networkpolicy-router.yaml
+  - networkpolicy-postgres.yaml
+  - networkpolicy-redis.yaml
+
+images:
+  - name: mcp-router
+    newName: ghcr.io/example/mcp-router
+    newTag: staging
+
+patches:
+  - path: configmap-patch.yaml
+    target:
+      kind: ConfigMap
+      name: mcp-router-config
+  - path: deployment-patch.yaml
+    target:
+      kind: Deployment
+      name: mcp-router

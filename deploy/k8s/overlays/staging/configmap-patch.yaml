@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-router-config
+data:
+  MCP_ROUTER_APP_ENV: staging
+  MCP_ROUTER_REQUIRE_DEPENDENCIES_FOR_READINESS: "true"
+  MCP_ROUTER_LOG_FORMAT: json
+  MCP_ROUTER_METRICS_ENABLED: "true"
+  MCP_ROUTER_READINESS_PROBE_TIMEOUT_SECONDS: "2.0"
+  MCP_ROUTER_AUTH_ENABLED: "true"
