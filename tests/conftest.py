@@ -5,6 +5,7 @@ import sys
 import httpx
 import pytest
 from fastapi import FastAPI, Header, Response
+from fastapi.responses import PlainTextResponse
 from fastapi.testclient import TestClient
 
 from internal.application import create_app
@@ -66,8 +67,15 @@ def build_demo_policy_rules() -> list[PolicyRule]:
     ]
 
 
-def create_http_upstream_app() -> FastAPI:
+def create_http_upstream_app(
+    *,
+    server_info_name: str = "demo-http-upstream",
+    expected_tool_name: str = "demo.http.reverse",
+    fail_first_tool_calls: int = 0,
+    always_fail_tool_calls: bool = False,
+) -> FastAPI:
     app = FastAPI()
+    app.state.tool_call_attempts = 0
 
     @app.post("/mcp")
     async def handle_mcp(
@@ -100,7 +108,7 @@ def create_http_upstream_app() -> FastAPI:
                 "result": {
                     "protocolVersion": "2025-03-26",
                     "serverInfo": {
-                        "name": "demo-http-upstream",
+                        "name": server_info_name,
                         "version": "0.1.0",
                     },
                     "capabilities": {
@@ -127,7 +135,7 @@ def create_http_upstream_app() -> FastAPI:
                 "result": {
                     "tools": [
                         {
-                            "name": "demo.http.reverse",
+                            "name": expected_tool_name,
                             "description": "Reverses text using the HTTP upstream.",
                             "inputSchema": {
                                 "type": "object",
@@ -154,7 +162,7 @@ def create_http_upstream_app() -> FastAPI:
                 }
             tool_name = params.get("name")
             arguments = params.get("arguments", {})
-            if tool_name != "demo.http.reverse":
+            if tool_name != expected_tool_name:
                 return {
                     "jsonrpc": "2.0",
                     "id": request_id,
@@ -163,6 +171,12 @@ def create_http_upstream_app() -> FastAPI:
                         "message": f"Unknown tool: {tool_name}",
                     },
                 }
+            app.state.tool_call_attempts += 1
+            if always_fail_tool_calls or app.state.tool_call_attempts <= fail_first_tool_calls:
+                return PlainTextResponse(
+                    f"{server_info_name} transport failure",
+                    status_code=502,
+                )
             text = arguments.get("text", "")
             delay_ms = arguments.get("delayMs", 0)
             if isinstance(delay_ms, int) and delay_ms > 0:
@@ -181,6 +195,7 @@ def create_http_upstream_app() -> FastAPI:
                         "tool": tool_name,
                         "transport": "streamable_http",
                         "reversed": text[::-1],
+                        "serverName": server_info_name,
                         "upstreamSessionId": mcp_session_id,
                         "tenantId": x_mcp_router_tenant_id,
                         "principalId": x_mcp_router_principal_id,
@@ -216,14 +231,15 @@ def build_test_settings(**overrides) -> Settings:
 
 
 def build_integrated_app(**setting_overrides) -> FastAPI:
-    http_upstream_app = create_http_upstream_app()
-    http_transport = httpx.ASGITransport(app=http_upstream_app)
-    stdio_script = Path(__file__).parent / "fixtures" / "demo_stdio_upstream.py"
+    upstream_servers = setting_overrides.pop("upstream_servers", None)
+    http_transport_overrides = setting_overrides.pop("http_transport_overrides", None)
+    policy_rules = setting_overrides.pop("policy_rules", None)
 
-    return create_app(
-        build_test_settings(**setting_overrides),
-        policy_rules=build_demo_policy_rules(),
-        upstream_servers=[
+    if upstream_servers is None:
+        http_upstream_app = create_http_upstream_app()
+        http_transport = httpx.ASGITransport(app=http_upstream_app)
+        stdio_script = Path(__file__).parent / "fixtures" / "demo_stdio_upstream.py"
+        upstream_servers = [
             UpstreamServerDefinition(
                 server_id="demo-http",
                 transport="streamable_http",
@@ -234,10 +250,16 @@ def build_integrated_app(**setting_overrides) -> FastAPI:
                 transport="stdio",
                 command=(sys.executable, str(stdio_script)),
             ),
-        ],
-        http_transport_overrides={
+        ]
+        http_transport_overrides = {
             "http://demo-http/mcp": http_transport,
-        },
+        }
+
+    return create_app(
+        build_test_settings(**setting_overrides),
+        policy_rules=policy_rules or build_demo_policy_rules(),
+        upstream_servers=upstream_servers,
+        http_transport_overrides=http_transport_overrides,
     )
 
 
@@ -258,6 +280,11 @@ def integrated_app() -> FastAPI:
 @pytest.fixture
 def integrated_app_factory():
     return build_integrated_app
+
+
+@pytest.fixture
+def http_upstream_app_factory():
+    return create_http_upstream_app
 
 
 @pytest.fixture

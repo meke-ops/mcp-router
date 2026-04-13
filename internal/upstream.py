@@ -13,6 +13,7 @@ from internal.registry import UpstreamServerDefinition
 class UpstreamCallResult:
     response: JsonRpcResponse | None
     upstream_session_id: str | None = None
+    server_id: str | None = None
 
 
 class UpstreamTransportError(Exception):
@@ -107,6 +108,7 @@ class UpstreamTransportGateway:
             return UpstreamCallResult(
                 response=None,
                 upstream_session_id=response.headers.get("MCP-Session-Id"),
+                server_id=server.server_id,
             )
 
         try:
@@ -119,6 +121,7 @@ class UpstreamTransportGateway:
         return UpstreamCallResult(
             response=JsonRpcResponse.model_validate(payload),
             upstream_session_id=response.headers.get("MCP-Session-Id"),
+            server_id=server.server_id,
         )
 
     async def _send_stdio(
@@ -163,7 +166,7 @@ class UpstreamTransportGateway:
 
         if request.id is None:
             await asyncio.wait_for(process.wait(), timeout=server.timeout_seconds)
-            return UpstreamCallResult(response=None)
+            return UpstreamCallResult(response=None, server_id=server.server_id)
 
         stdout_line = await asyncio.wait_for(
             process.stdout.readline(),
@@ -195,4 +198,7 @@ class UpstreamTransportGateway:
                 f"stdio upstream returned invalid JSON for {server.server_id}."
             ) from exc
 
-        return UpstreamCallResult(response=JsonRpcResponse.model_validate(payload))
+        return UpstreamCallResult(
+            response=JsonRpcResponse.model_validate(payload),
+            server_id=server.server_id,
+        )

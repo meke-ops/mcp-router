@@ -4,6 +4,8 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from internal.registry import UpstreamServerDefinition
+
 
 def test_initialize_creates_session(client):
     response = client.post(
@@ -639,10 +641,18 @@ def test_tools_call_propagates_traceparent_and_records_trace_chain(integrated_cl
     assert "mcp.tools.call" in span_by_name
     assert "traffic.check" in span_by_name
     assert "policy.evaluate" in span_by_name
+    assert "upstream.resilience" in span_by_name
     assert "upstream.call" in span_by_name
     assert span_by_name["traffic.check"].parent_span_id == span_by_name["mcp.tools.call"].span_id
     assert span_by_name["policy.evaluate"].parent_span_id == span_by_name["mcp.tools.call"].span_id
-    assert span_by_name["upstream.call"].parent_span_id == span_by_name["mcp.tools.call"].span_id
+    assert (
+        span_by_name["upstream.resilience"].parent_span_id
+        == span_by_name["mcp.tools.call"].span_id
+    )
+    assert (
+        span_by_name["upstream.call"].parent_span_id
+        == span_by_name["upstream.resilience"].span_id
+    )
 
     tool_call_records = asyncio.run(integrated_client.app.state.services.audit_log.list_tool_calls())
     traced_record = next(record for record in tool_call_records if str(record.request_id) == "29")
@@ -750,3 +760,182 @@ async def test_tools_call_concurrency_gate_returns_429_and_audit_event(
         and event.event_type == "traffic.concurrency.rejected"
     )
     assert rejected_event.detail["limitType"] == "concurrency"
+
+
+def test_tools_call_falls_back_to_hidden_upstream_on_transport_failure(
+    integrated_app_factory,
+    http_upstream_app_factory,
+):
+    primary_app = http_upstream_app_factory(
+        server_info_name="primary-http-upstream",
+        always_fail_tool_calls=True,
+    )
+    fallback_app = http_upstream_app_factory(
+        server_info_name="fallback-http-upstream",
+    )
+    app = integrated_app_factory(
+        upstream_servers=[
+            UpstreamServerDefinition(
+                server_id="demo-http-primary",
+                transport="streamable_http",
+                endpoint_url="http://demo-http-primary/mcp",
+                fallback_server_ids=("demo-http-fallback",),
+                retry_attempts=1,
+                circuit_breaker_failure_threshold=2,
+                circuit_breaker_recovery_seconds=30.0,
+            ),
+            UpstreamServerDefinition(
+                server_id="demo-http-fallback",
+                transport="streamable_http",
+                endpoint_url="http://demo-http-fallback/mcp",
+                discover_tools=False,
+            ),
+        ],
+        http_transport_overrides={
+            "http://demo-http-primary/mcp": httpx.ASGITransport(app=primary_app),
+            "http://demo-http-fallback/mcp": httpx.ASGITransport(app=fallback_app),
+        },
+    )
+
+    with TestClient(app) as client:
+        initialize_response = client.post(
+            "/mcp",
+            headers={
+                "X-Tenant-Id": "tenant-a",
+                "X-Principal-Id": "user-1",
+            },
+            json={
+                "jsonrpc": "2.0",
+                "id": "34",
+                "method": "initialize",
+                "params": {},
+            },
+        )
+        response = client.post(
+            "/mcp",
+            headers={"MCP-Session-Id": initialize_response.headers["MCP-Session-Id"]},
+            json={
+                "jsonrpc": "2.0",
+                "id": "35",
+                "method": "tools/call",
+                "params": {
+                    "name": "demo.http.reverse",
+                    "arguments": {"text": "fallback"},
+                },
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["result"]["structuredContent"]["serverName"] == "fallback-http-upstream"
+    assert primary_app.state.tool_call_attempts == 2
+    assert fallback_app.state.tool_call_attempts == 1
+
+    audit_event_records = asyncio.run(app.state.services.audit_log.list_audit_events())
+    event_types = {
+        event.event_type
+        for event in audit_event_records
+        if str(event.request_id) == "35"
+    }
+    assert "upstream.retry.scheduled" in event_types
+    assert "upstream.fallback.selected" in event_types
+    assert "upstream.fallback.succeeded" in event_types
+
+
+def test_circuit_breaker_skips_primary_and_uses_fallback_on_next_call(
+    integrated_app_factory,
+    http_upstream_app_factory,
+):
+    primary_app = http_upstream_app_factory(
+        server_info_name="primary-http-upstream",
+        always_fail_tool_calls=True,
+    )
+    fallback_app = http_upstream_app_factory(
+        server_info_name="fallback-http-upstream",
+    )
+    app = integrated_app_factory(
+        upstream_servers=[
+            UpstreamServerDefinition(
+                server_id="demo-http-primary",
+                transport="streamable_http",
+                endpoint_url="http://demo-http-primary/mcp",
+                fallback_server_ids=("demo-http-fallback",),
+                retry_attempts=0,
+                circuit_breaker_failure_threshold=1,
+                circuit_breaker_recovery_seconds=60.0,
+            ),
+            UpstreamServerDefinition(
+                server_id="demo-http-fallback",
+                transport="streamable_http",
+                endpoint_url="http://demo-http-fallback/mcp",
+                discover_tools=False,
+            ),
+        ],
+        http_transport_overrides={
+            "http://demo-http-primary/mcp": httpx.ASGITransport(app=primary_app),
+            "http://demo-http-fallback/mcp": httpx.ASGITransport(app=fallback_app),
+        },
+    )
+
+    with TestClient(app) as client:
+        initialize_response = client.post(
+            "/mcp",
+            headers={
+                "X-Tenant-Id": "tenant-a",
+                "X-Principal-Id": "user-1",
+            },
+            json={
+                "jsonrpc": "2.0",
+                "id": "36",
+                "method": "initialize",
+                "params": {},
+            },
+        )
+        session_id = initialize_response.headers["MCP-Session-Id"]
+
+        first_response = client.post(
+            "/mcp",
+            headers={"MCP-Session-Id": session_id},
+            json={
+                "jsonrpc": "2.0",
+                "id": "37",
+                "method": "tools/call",
+                "params": {
+                    "name": "demo.http.reverse",
+                    "arguments": {"text": "first"},
+                },
+            },
+        )
+        second_response = client.post(
+            "/mcp",
+            headers={"MCP-Session-Id": session_id},
+            json={
+                "jsonrpc": "2.0",
+                "id": "38",
+                "method": "tools/call",
+                "params": {
+                    "name": "demo.http.reverse",
+                    "arguments": {"text": "second"},
+                },
+            },
+        )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert first_response.json()["result"]["structuredContent"]["serverName"] == "fallback-http-upstream"
+    assert second_response.json()["result"]["structuredContent"]["serverName"] == "fallback-http-upstream"
+    assert primary_app.state.tool_call_attempts == 1
+    assert fallback_app.state.tool_call_attempts == 2
+
+    audit_event_records = asyncio.run(app.state.services.audit_log.list_audit_events())
+    second_call_events = [
+        event
+        for event in audit_event_records
+        if str(event.request_id) == "38"
+    ]
+    event_types = {event.event_type for event in second_call_events}
+    assert "circuit.open.rejected" in event_types
+    assert "upstream.fallback.selected" in event_types
+    rejection_event = next(
+        event for event in second_call_events if event.event_type == "circuit.open.rejected"
+    )
+    assert rejection_event.detail["serverId"] == "demo-http-primary"

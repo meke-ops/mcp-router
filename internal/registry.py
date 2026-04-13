@@ -81,6 +81,11 @@ class UpstreamServerDefinition:
     command: tuple[str, ...] = ()
     env: dict[str, str] = field(default_factory=dict)
     timeout_seconds: float = 10.0
+    discover_tools: bool = True
+    fallback_server_ids: tuple[str, ...] = ()
+    retry_attempts: int = 0
+    circuit_breaker_failure_threshold: int = 3
+    circuit_breaker_recovery_seconds: float = 30.0
 
 
 def build_tool_version(definition: ToolDefinition) -> ToolVersion:
@@ -153,6 +158,14 @@ class InMemoryToolRegistry:
     async def list_upstream_servers(self) -> list[UpstreamServerDefinition]:
         async with self._lock:
             return list(self._upstream_servers.values())
+
+    async def list_discoverable_upstream_servers(self) -> list[UpstreamServerDefinition]:
+        async with self._lock:
+            return [
+                upstream_server
+                for upstream_server in self._upstream_servers.values()
+                if upstream_server.discover_tools
+            ]
 
     async def get_upstream_server(self, server_id: str) -> UpstreamServerDefinition | None:
         async with self._lock:

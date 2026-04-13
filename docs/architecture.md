@@ -16,6 +16,7 @@ on the MCP data plane and its supporting backend services.
 - per tool-call rate limiting and concurrency gates
 - in-memory audit records for policy decisions, tool calls, and audit events
 - traceparent-compatible span recording and upstream propagation
+- retry-aware fallback chains and in-memory circuit breaker state
 - passthrough transport gateway for `streamable_http` and `stdio` upstreams
 - readiness surface that already exposes PostgreSQL and Redis configuration state
 
@@ -24,4 +25,4 @@ on the MCP data plane and its supporting backend services.
 - PostgreSQL-backed registry and audit storage
 - Redis-backed session lifecycle and traffic control
 - external trace export, metrics, and dashboards
-- fallback chains and circuit breaker behavior
+- control-plane API and dashboard workflows

@@ -17,6 +17,7 @@ from internal.health import ReadinessService
 from internal.logging import configure_logging
 from internal.mcp.service import MCPRouterService
 from internal.policy import InMemoryPolicyStore, PolicyEngine, PolicyObligation, PolicyRule
+from internal.resilience import InMemoryCircuitBreakerStore
 from internal.registry import InMemoryToolRegistry, UpstreamServerDefinition
 from internal.session_manager import InMemorySessionManager
 from internal.tracing import InMemoryTraceRecorder, build_inbound_span_context
@@ -72,6 +73,7 @@ def create_service_container(
     readiness_service = ReadinessService(settings=settings)
     policy_store = InMemoryPolicyStore(rules=resolved_policy_rules)
     policy_engine = PolicyEngine(store=policy_store)
+    circuit_breaker_store = InMemoryCircuitBreakerStore()
     audit_log = InMemoryAuditLog()
     trace_recorder = InMemoryTraceRecorder()
     traffic_controller = InMemoryTrafficController(
@@ -87,6 +89,7 @@ def create_service_container(
         session_manager=session_manager,
         tool_registry=tool_registry,
         policy_engine=policy_engine,
+        circuit_breaker_store=circuit_breaker_store,
         audit_log=audit_log,
         trace_recorder=trace_recorder,
         traffic_controller=traffic_controller,
@@ -100,6 +103,7 @@ def create_service_container(
         tool_registry=tool_registry,
         policy_store=policy_store,
         policy_engine=policy_engine,
+        circuit_breaker_store=circuit_breaker_store,
         audit_log=audit_log,
         trace_recorder=trace_recorder,
         traffic_controller=traffic_controller,
@@ -139,6 +143,17 @@ def _load_upstream_servers(settings: Settings) -> list[UpstreamServerDefinition]
                 command=tuple(command),
                 env=env,
                 timeout_seconds=float(raw_item.get("timeout_seconds", 10.0)),
+                discover_tools=bool(raw_item.get("discover_tools", True)),
+                fallback_server_ids=tuple(
+                    str(item) for item in raw_item.get("fallback_server_ids", [])
+                ),
+                retry_attempts=int(raw_item.get("retry_attempts", 0)),
+                circuit_breaker_failure_threshold=int(
+                    raw_item.get("circuit_breaker_failure_threshold", 3)
+                ),
+                circuit_breaker_recovery_seconds=float(
+                    raw_item.get("circuit_breaker_recovery_seconds", 30.0)
+                ),
             )
         )
 

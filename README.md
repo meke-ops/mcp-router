@@ -5,7 +5,7 @@ routing, and observability.
 
 ## Current status
 
-The repository now includes the backend work through milestone 7:
+The repository now includes the backend work through milestone 8:
 
 - FastAPI application skeleton
 - `/v1/health` and `/v1/ready` endpoints
@@ -22,6 +22,7 @@ The repository now includes the backend work through milestone 7:
 - in-memory policy, tool-call, and audit-event logging
 - `traceparent` propagation from `/mcp` to upstream transports
 - in-memory span recorder for request, policy, traffic, and upstream traces
+- retry-aware upstream fallback chains with in-memory circuit breakers
 - integration tests covering one HTTP and one stdio upstream
 
 ## Project layout
@@ -153,8 +154,39 @@ X-Trace-Id: <trace-id>
 traceparent: <router-root-span>
 ```
 
+## Resilience configuration
+
+Each upstream can optionally define fallback and breaker settings through
+`MCP_ROUTER_UPSTREAMS_JSON`.
+
+Example:
+
+```json
+[
+  {
+    "server_id": "primary-http",
+    "transport": "streamable_http",
+    "endpoint_url": "http://127.0.0.1:9001/mcp",
+    "fallback_server_ids": ["standby-http"],
+    "retry_attempts": 1,
+    "circuit_breaker_failure_threshold": 2,
+    "circuit_breaker_recovery_seconds": 30.0
+  },
+  {
+    "server_id": "standby-http",
+    "transport": "streamable_http",
+    "endpoint_url": "http://127.0.0.1:9002/mcp",
+    "discover_tools": false
+  }
+]
+```
+
+When the primary route hits repeated transport failures, the router opens that
+server's circuit, records the event, and continues with the configured fallback
+chain instead of failing hard.
+
 ## Next backend steps
 
-- add fallback chains and circuit breaker behavior
 - move audit, tracing, session, and traffic stores to external backends
 - expose audit/query/control-plane APIs and operational dashboards
+- start the control-plane API and dashboard work for milestone 9

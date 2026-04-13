@@ -5,6 +5,7 @@ from internal.config import Settings
 from internal.health import ReadinessService
 from internal.mcp.service import MCPRouterService
 from internal.policy import InMemoryPolicyStore, PolicyEngine
+from internal.resilience import InMemoryCircuitBreakerStore
 from internal.registry import InMemoryToolRegistry
 from internal.session_manager import InMemorySessionManager
 from internal.tracing import InMemoryTraceRecorder
@@ -20,6 +21,7 @@ class ServiceContainer:
     tool_registry: InMemoryToolRegistry
     policy_store: InMemoryPolicyStore
     policy_engine: PolicyEngine
+    circuit_breaker_store: InMemoryCircuitBreakerStore
     audit_log: InMemoryAuditLog
     trace_recorder: InMemoryTraceRecorder
     traffic_controller: InMemoryTrafficController

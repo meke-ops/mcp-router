@@ -7,6 +7,7 @@ from internal.context import RequestIdentity, RouterRequestContext
 from internal.mcp.errors import JsonRpcErrorCode, JsonRpcFault
 from internal.mcp.models import JsonRpcRequest, JsonRpcResponse
 from internal.policy import PolicyDecision, PolicyEngine, PolicyEvaluationContext
+from internal.resilience import InMemoryCircuitBreakerStore
 from internal.registry import (
     build_registered_tool,
     InMemoryToolRegistry,
@@ -44,6 +45,7 @@ class MCPRouterService:
         session_manager: InMemorySessionManager,
         tool_registry: InMemoryToolRegistry,
         policy_engine: PolicyEngine,
+        circuit_breaker_store: InMemoryCircuitBreakerStore,
         audit_log: InMemoryAuditLog,
         trace_recorder: InMemoryTraceRecorder,
         traffic_controller: InMemoryTrafficController,
@@ -53,6 +55,7 @@ class MCPRouterService:
         self._session_manager = session_manager
         self._tool_registry = tool_registry
         self._policy_engine = policy_engine
+        self._circuit_breaker_store = circuit_breaker_store
         self._audit_log = audit_log
         self._trace_recorder = trace_recorder
         self._traffic_controller = traffic_controller
@@ -361,12 +364,13 @@ class MCPRouterService:
                         ),
                     )
 
-                upstream_result = await self._send_upstream_request(
-                    server=upstream_server,
+                upstream_result = await self._send_tool_call_with_resilience(
+                    primary_server=upstream_server,
                     request=request,
                     session=session,
                     request_context=request_context,
                     parent_span_id=tool_call_span.span_id,
+                    registered_tool=registered_tool,
                 )
                 dispatch_result = self._dispatch_result_from_upstream(
                     upstream_result=upstream_result,
@@ -416,6 +420,7 @@ class MCPRouterService:
                     ),
                     started_at=started_at,
                     traffic_decision=traffic_decision,
+                    server_id_override=upstream_result.server_id,
                 )
                 return dispatch_result
             except JsonRpcFault as exc:
@@ -535,18 +540,37 @@ class MCPRouterService:
         request_context: RouterRequestContext,
     ) -> None:
         for upstream_server in await self._tool_registry.list_upstream_servers():
-            upstream_result = await self._send_upstream_request(
-                server=upstream_server,
-                request=JsonRpcRequest(
-                    jsonrpc="2.0",
-                    id=request.id,
-                    method="initialize",
-                    params=request.params,
-                ),
-                session=session,
-                request_context=request_context,
-                parent_span_id=request_context.span_id,
-            )
+            try:
+                upstream_result = await self._send_upstream_request(
+                    server=upstream_server,
+                    request=JsonRpcRequest(
+                        jsonrpc="2.0",
+                        id=request.id,
+                        method="initialize",
+                        params=request.params,
+                    ),
+                    session=session,
+                    request_context=request_context,
+                    parent_span_id=request_context.span_id,
+                )
+            except JsonRpcFault as exc:
+                if upstream_server.discover_tools:
+                    raise
+                await self._audit_log.record_event(
+                    trace_id=request_context.trace_id,
+                    span_id=request_context.span_id,
+                    session_id=session.session_id,
+                    request_id=request.id,
+                    tenant_id=session.tenant_id,
+                    principal_id=session.principal_id,
+                    tool_name=None,
+                    event_type="fallback.initialize.skipped",
+                    detail={
+                        "serverId": upstream_server.server_id,
+                        "message": exc.message,
+                    },
+                )
+                continue
             if upstream_result.response is not None and upstream_result.response.error is not None:
                 raise JsonRpcFault(
                     code=upstream_result.response.error.code,
@@ -580,7 +604,7 @@ class MCPRouterService:
         discovered_tools: list[RegisteredTool] = []
         seen_tool_names: dict[str, str] = {}
 
-        for upstream_server in await self._tool_registry.list_upstream_servers():
+        for upstream_server in await self._tool_registry.list_discoverable_upstream_servers():
             upstream_result = await self._send_upstream_request(
                 server=upstream_server,
                 request=JsonRpcRequest(
@@ -818,6 +842,213 @@ class MCPRouterService:
             )
             return decision
 
+    async def _send_tool_call_with_resilience(
+        self,
+        *,
+        primary_server: UpstreamServerDefinition,
+        request: JsonRpcRequest,
+        session: SessionRecord,
+        request_context: RouterRequestContext,
+        parent_span_id: str,
+        registered_tool: RegisteredTool,
+    ) -> UpstreamCallResult:
+        route_servers = await self._resolve_route_servers(primary_server)
+        route_failures: list[dict[str, object | None]] = []
+
+        async with self._trace_recorder.span(
+            name="upstream.resilience",
+            trace_id=request_context.trace_id,
+            parent_span_id=parent_span_id,
+            attributes={
+                "mcp.tool_name": registered_tool.name,
+                "mcp.primary_server_id": primary_server.server_id,
+            },
+        ) as resilience_span:
+            for index, route_server in enumerate(route_servers):
+                circuit_decision = await self._circuit_breaker_store.before_request(
+                    route_server.server_id
+                )
+                if not circuit_decision.allowed:
+                    route_failures.append(
+                        {
+                            "serverId": route_server.server_id,
+                            "type": "circuit_open",
+                            "retryAfterSeconds": circuit_decision.retry_after_seconds,
+                        }
+                    )
+                    await self._audit_log.record_event(
+                        trace_id=request_context.trace_id,
+                        span_id=resilience_span.span_id,
+                        session_id=session.session_id,
+                        request_id=request.id,
+                        tenant_id=session.tenant_id,
+                        principal_id=session.principal_id,
+                        tool_name=registered_tool.name,
+                        event_type="circuit.open.rejected",
+                        detail={
+                            "serverId": route_server.server_id,
+                            **circuit_decision.to_payload(),
+                        },
+                    )
+                    if index < len(route_servers) - 1:
+                        await self._audit_log.record_event(
+                            trace_id=request_context.trace_id,
+                            span_id=resilience_span.span_id,
+                            session_id=session.session_id,
+                            request_id=request.id,
+                            tenant_id=session.tenant_id,
+                            principal_id=session.principal_id,
+                            tool_name=registered_tool.name,
+                            event_type="upstream.fallback.selected",
+                            detail={
+                                "fromServerId": route_server.server_id,
+                                "toServerId": route_servers[index + 1].server_id,
+                                "reason": "circuit_open",
+                            },
+                        )
+                    continue
+
+                last_transport_error: str | None = None
+                for attempt_index in range(route_server.retry_attempts + 1):
+                    try:
+                        upstream_result = await self._send_upstream_request(
+                            server=route_server,
+                            request=request,
+                            session=session,
+                            request_context=request_context,
+                            parent_span_id=resilience_span.span_id,
+                            convert_transport_errors=False,
+                        )
+                    except UpstreamTransportError as exc:
+                        last_transport_error = str(exc)
+                        route_failures.append(
+                            {
+                                "serverId": route_server.server_id,
+                                "type": "transport_error",
+                                "attempt": attempt_index + 1,
+                                "detail": last_transport_error,
+                            }
+                        )
+                        breaker_result = await self._circuit_breaker_store.record_failure(
+                            route_server.server_id,
+                            failure_threshold=route_server.circuit_breaker_failure_threshold,
+                            recovery_timeout_seconds=route_server.circuit_breaker_recovery_seconds,
+                        )
+                        await self._audit_log.record_event(
+                            trace_id=request_context.trace_id,
+                            span_id=resilience_span.span_id,
+                            session_id=session.session_id,
+                            request_id=request.id,
+                            tenant_id=session.tenant_id,
+                            principal_id=session.principal_id,
+                            tool_name=registered_tool.name,
+                            event_type="upstream.retry.failed",
+                            detail={
+                                "serverId": route_server.server_id,
+                                "attempt": attempt_index + 1,
+                                "detail": last_transport_error,
+                            },
+                        )
+                        if breaker_result.state == "open":
+                            await self._audit_log.record_event(
+                                trace_id=request_context.trace_id,
+                                span_id=resilience_span.span_id,
+                                session_id=session.session_id,
+                                request_id=request.id,
+                                tenant_id=session.tenant_id,
+                                principal_id=session.principal_id,
+                                tool_name=registered_tool.name,
+                                event_type="circuit.opened",
+                                detail={
+                                    "serverId": route_server.server_id,
+                                    **breaker_result.to_payload(),
+                                },
+                            )
+                            break
+                        if attempt_index < route_server.retry_attempts:
+                            await self._audit_log.record_event(
+                                trace_id=request_context.trace_id,
+                                span_id=resilience_span.span_id,
+                                session_id=session.session_id,
+                                request_id=request.id,
+                                tenant_id=session.tenant_id,
+                                principal_id=session.principal_id,
+                                tool_name=registered_tool.name,
+                                event_type="upstream.retry.scheduled",
+                                detail={
+                                    "serverId": route_server.server_id,
+                                    "nextAttempt": attempt_index + 2,
+                                },
+                            )
+                            continue
+                        break
+                    else:
+                        await self._circuit_breaker_store.record_success(route_server.server_id)
+                        if route_server.server_id != primary_server.server_id:
+                            await self._audit_log.record_event(
+                                trace_id=request_context.trace_id,
+                                span_id=resilience_span.span_id,
+                                session_id=session.session_id,
+                                request_id=request.id,
+                                tenant_id=session.tenant_id,
+                                principal_id=session.principal_id,
+                                tool_name=registered_tool.name,
+                                event_type="upstream.fallback.succeeded",
+                                detail={
+                                    "primaryServerId": primary_server.server_id,
+                                    "selectedServerId": route_server.server_id,
+                                },
+                            )
+                        return upstream_result
+
+                if index < len(route_servers) - 1:
+                    await self._audit_log.record_event(
+                        trace_id=request_context.trace_id,
+                        span_id=resilience_span.span_id,
+                        session_id=session.session_id,
+                        request_id=request.id,
+                        tenant_id=session.tenant_id,
+                        principal_id=session.principal_id,
+                        tool_name=registered_tool.name,
+                        event_type="upstream.fallback.selected",
+                        detail={
+                            "fromServerId": route_server.server_id,
+                            "toServerId": route_servers[index + 1].server_id,
+                            "reason": last_transport_error or "transport_error",
+                        },
+                    )
+
+            raise JsonRpcFault(
+                code=JsonRpcErrorCode.UPSTREAM_UNAVAILABLE,
+                message=f"All upstream routes failed for tool: {registered_tool.name}",
+                data={
+                    "tool": registered_tool.name,
+                    "primaryServerId": primary_server.server_id,
+                    "routesTried": route_failures,
+                },
+            )
+
+    async def _resolve_route_servers(
+        self,
+        primary_server: UpstreamServerDefinition,
+    ) -> list[UpstreamServerDefinition]:
+        ordered_servers: list[UpstreamServerDefinition] = []
+        visited: set[str] = set()
+        pending_server_ids = [primary_server.server_id]
+
+        while pending_server_ids:
+            server_id = pending_server_ids.pop(0)
+            if server_id in visited:
+                continue
+            visited.add(server_id)
+            server = await self._tool_registry.get_upstream_server(server_id)
+            if server is None:
+                continue
+            ordered_servers.append(server)
+            pending_server_ids.extend(server.fallback_server_ids)
+
+        return ordered_servers
+
     async def _send_upstream_request(
         self,
         server: UpstreamServerDefinition,
@@ -825,6 +1056,7 @@ class MCPRouterService:
         session: SessionRecord,
         request_context: RouterRequestContext,
         parent_span_id: str,
+        convert_transport_errors: bool = True,
     ) -> UpstreamCallResult:
         upstream_session_id = await self._session_manager.get_upstream_session(
             session_id=session.session_id,
@@ -864,11 +1096,13 @@ class MCPRouterService:
                     event_type="upstream.call.failed",
                     detail={"serverId": server.server_id, "detail": str(exc)},
                 )
-                raise JsonRpcFault(
-                    code=JsonRpcErrorCode.UPSTREAM_UNAVAILABLE,
-                    message=f"Upstream transport failed: {server.server_id}",
-                    data={"detail": str(exc)},
-                ) from exc
+                if convert_transport_errors:
+                    raise JsonRpcFault(
+                        code=JsonRpcErrorCode.UPSTREAM_UNAVAILABLE,
+                        message=f"Upstream transport failed: {server.server_id}",
+                        data={"detail": str(exc)},
+                    ) from exc
+                raise
 
             if upstream_result.upstream_session_id:
                 await self._session_manager.set_upstream_session(
@@ -938,6 +1172,7 @@ class MCPRouterService:
         registered_tool: RegisteredTool | None = None,
         fallback_tool_name: str | None = None,
         traffic_decision: TrafficLimitDecision | None = None,
+        server_id_override: str | None = None,
     ) -> None:
         tool_name = (
             registered_tool.name
@@ -948,9 +1183,12 @@ class MCPRouterService:
             registered_tool.version if registered_tool is not None else "unresolved"
         )
         server_id = (
-            registered_tool.binding.server_id
-            if registered_tool is not None
-            else "unresolved"
+            server_id_override
+            or (
+                registered_tool.binding.server_id
+                if registered_tool is not None
+                else "unresolved"
+            )
         )
         await self._audit_log.record_tool_call(
             trace_id=request_context.trace_id,
