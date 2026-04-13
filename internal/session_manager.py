@@ -30,18 +30,24 @@ class InMemorySessionManager:
                 return None
             return session
 
-    async def get_or_create(self, session_id: str | None) -> SessionRecord:
+    async def get_or_create(
+        self,
+        session_id: str | None,
+        tenant_id: str,
+        principal_id: str,
+    ) -> SessionRecord:
         if session_id:
             existing = await self.get(session_id)
             if existing is not None:
+                self._assert_context(existing, tenant_id=tenant_id, principal_id=principal_id)
                 return await self.touch(session_id)
 
         async with self._lock:
             now = datetime.now(UTC)
             new_session = SessionRecord(
                 session_id=str(uuid4()),
-                tenant_id="public",
-                principal_id="anonymous",
+                tenant_id=tenant_id,
+                principal_id=principal_id,
                 created_at=now,
                 expires_at=now + self._ttl,
             )
@@ -77,3 +83,14 @@ class InMemorySessionManager:
                 self._sessions.pop(session_id, None)
                 return None
             return session.upstream_sessions.get(server_id)
+
+    def _assert_context(
+        self,
+        session: SessionRecord,
+        tenant_id: str,
+        principal_id: str,
+    ) -> None:
+        if session.tenant_id != tenant_id or session.principal_id != principal_id:
+            raise ValueError(
+                "Session context mismatch."
+            )

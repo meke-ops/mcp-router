@@ -14,6 +14,7 @@ working slice of milestone 2:
 - in-memory session bootstrap for `initialize`
 - upstream passthrough for `initialize`, `tools/list`, and `tools/call`
 - HTTP upstream session propagation through `MCP-Session-Id`
+- tenant/principal binding via `X-Tenant-Id` and `X-Principal-Id`
 - integration tests covering one HTTP and one stdio upstream
 
 ## Project layout
@@ -63,6 +64,17 @@ You can start the sample HTTP upstream with:
 ```bash
 python3 examples/upstreams/http_server.py
 ```
+
+To bind a router session to a tenant and principal, send these headers on
+`initialize`:
+
+```text
+X-Tenant-Id: tenant-a
+X-Principal-Id: user-1
+```
+
+Subsequent calls can reuse the same `MCP-Session-Id`. If the caller sends a
+different tenant or principal for that session, the router rejects the request.
 
 ## Next backend steps
 

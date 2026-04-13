@@ -114,6 +114,10 @@ def test_tools_list_merges_http_and_stdio_upstreams(integrated_client):
 def test_tools_call_routes_to_http_upstream(integrated_client):
     initialize_response = integrated_client.post(
         "/mcp",
+        headers={
+            "X-Tenant-Id": "tenant-a",
+            "X-Principal-Id": "user-1",
+        },
         json={
             "jsonrpc": "2.0",
             "id": "9",
@@ -142,11 +146,17 @@ def test_tools_call_routes_to_http_upstream(integrated_client):
         response.json()["result"]["structuredContent"]["upstreamSessionId"]
         == "http-upstream-session"
     )
+    assert response.json()["result"]["structuredContent"]["tenantId"] == "tenant-a"
+    assert response.json()["result"]["structuredContent"]["principalId"] == "user-1"
 
 
 def test_tools_call_routes_to_stdio_upstream(integrated_client):
     initialize_response = integrated_client.post(
         "/mcp",
+        headers={
+            "X-Tenant-Id": "tenant-a",
+            "X-Principal-Id": "user-1",
+        },
         json={
             "jsonrpc": "2.0",
             "id": "11",
@@ -172,3 +182,39 @@ def test_tools_call_routes_to_stdio_upstream(integrated_client):
     assert response.status_code == 200
     assert response.json()["result"]["structuredContent"]["transport"] == "stdio"
     assert response.json()["result"]["structuredContent"]["echo"] == "router"
+    assert response.json()["result"]["structuredContent"]["tenantId"] == "tenant-a"
+    assert response.json()["result"]["structuredContent"]["principalId"] == "user-1"
+
+
+def test_session_rejects_context_mismatch(integrated_client):
+    initialize_response = integrated_client.post(
+        "/mcp",
+        headers={
+            "X-Tenant-Id": "tenant-a",
+            "X-Principal-Id": "user-1",
+        },
+        json={
+            "jsonrpc": "2.0",
+            "id": "13",
+            "method": "initialize",
+            "params": {},
+        },
+    )
+
+    response = integrated_client.post(
+        "/mcp",
+        headers={
+            "MCP-Session-Id": initialize_response.headers["MCP-Session-Id"],
+            "X-Tenant-Id": "tenant-b",
+            "X-Principal-Id": "user-1",
+        },
+        json={
+            "jsonrpc": "2.0",
+            "id": "14",
+            "method": "tools/list",
+            "params": {},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["error"]["code"] == -32008

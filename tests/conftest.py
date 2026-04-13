@@ -22,6 +22,14 @@ def create_http_upstream_app() -> FastAPI:
         payload: dict,
         response: Response,
         mcp_session_id: str | None = Header(default=None, alias="MCP-Session-Id"),
+        x_mcp_router_tenant_id: str | None = Header(
+            default=None,
+            alias="X-MCP-Router-Tenant-Id",
+        ),
+        x_mcp_router_principal_id: str | None = Header(
+            default=None,
+            alias="X-MCP-Router-Principal-Id",
+        ),
     ) -> dict:
         method = payload.get("method")
         request_id = payload.get("id")
@@ -113,6 +121,8 @@ def create_http_upstream_app() -> FastAPI:
                         "transport": "streamable_http",
                         "reversed": text[::-1],
                         "upstreamSessionId": mcp_session_id,
+                        "tenantId": x_mcp_router_tenant_id,
+                        "principalId": x_mcp_router_principal_id,
                     },
                 },
             }

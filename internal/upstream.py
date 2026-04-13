@@ -31,11 +31,24 @@ class UpstreamTransportGateway:
         server: UpstreamServerDefinition,
         request: JsonRpcRequest,
         session_id: str | None = None,
+        tenant_id: str | None = None,
+        principal_id: str | None = None,
     ) -> UpstreamCallResult:
         if server.transport == "streamable_http":
-            return await self._send_http(server=server, request=request, session_id=session_id)
+            return await self._send_http(
+                server=server,
+                request=request,
+                session_id=session_id,
+                tenant_id=tenant_id,
+                principal_id=principal_id,
+            )
         if server.transport == "stdio":
-            return await self._send_stdio(server=server, request=request)
+            return await self._send_stdio(
+                server=server,
+                request=request,
+                tenant_id=tenant_id,
+                principal_id=principal_id,
+            )
         raise UpstreamTransportError(f"Unsupported transport: {server.transport}")
 
     async def _send_http(
@@ -43,6 +56,8 @@ class UpstreamTransportGateway:
         server: UpstreamServerDefinition,
         request: JsonRpcRequest,
         session_id: str | None,
+        tenant_id: str | None,
+        principal_id: str | None,
     ) -> UpstreamCallResult:
         if not server.endpoint_url:
             raise UpstreamTransportError(
@@ -59,6 +74,10 @@ class UpstreamTransportGateway:
         headers = {"Content-Type": "application/json"}
         if session_id:
             headers["MCP-Session-Id"] = session_id
+        if tenant_id:
+            headers["X-MCP-Router-Tenant-Id"] = tenant_id
+        if principal_id:
+            headers["X-MCP-Router-Principal-Id"] = principal_id
 
         async with httpx.AsyncClient(**client_kwargs) as client:
             try:
@@ -94,6 +113,8 @@ class UpstreamTransportGateway:
         self,
         server: UpstreamServerDefinition,
         request: JsonRpcRequest,
+        tenant_id: str | None,
+        principal_id: str | None,
     ) -> UpstreamCallResult:
         if not server.command:
             raise UpstreamTransportError(
@@ -102,6 +123,10 @@ class UpstreamTransportGateway:
 
         env = os.environ.copy()
         env.update(server.env)
+        if tenant_id:
+            env["MCP_ROUTER_TENANT_ID"] = tenant_id
+        if principal_id:
+            env["MCP_ROUTER_PRINCIPAL_ID"] = principal_id
         process = await asyncio.create_subprocess_exec(
             *server.command,
             stdin=asyncio.subprocess.PIPE,

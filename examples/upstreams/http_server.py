@@ -11,6 +11,14 @@ async def handle_mcp(
     payload: dict,
     response: Response,
     mcp_session_id: str | None = Header(default=None, alias="MCP-Session-Id"),
+    x_mcp_router_tenant_id: str | None = Header(
+        default=None,
+        alias="X-MCP-Router-Tenant-Id",
+    ),
+    x_mcp_router_principal_id: str | None = Header(
+        default=None,
+        alias="X-MCP-Router-Principal-Id",
+    ),
 ) -> dict:
     method = payload.get("method")
     request_id = payload.get("id")
@@ -101,6 +109,8 @@ async def handle_mcp(
                     "tool": tool_name,
                     "transport": "streamable_http",
                     "reversed": text[::-1],
+                    "tenantId": x_mcp_router_tenant_id,
+                    "principalId": x_mcp_router_principal_id,
                 },
             },
         }

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from internal.config import Settings
+from internal.context import RequestIdentity
 from internal.mcp.errors import JsonRpcErrorCode, JsonRpcFault
 from internal.mcp.models import JsonRpcRequest, JsonRpcResponse
 from internal.registry import (
@@ -38,16 +39,17 @@ class MCPRouterService:
         self,
         request: JsonRpcRequest,
         session_id: str | None,
+        identity: RequestIdentity,
     ) -> DispatchResult:
         try:
             if request.method == "initialize":
-                return await self._handle_initialize(request, session_id)
+                return await self._handle_initialize(request, session_id, identity)
             if request.method == "notifications/initialized":
-                return await self._handle_initialized_notification(session_id)
+                return await self._handle_initialized_notification(session_id, identity)
             if request.method == "tools/list":
-                return await self._handle_tools_list(request, session_id)
+                return await self._handle_tools_list(request, session_id, identity)
             if request.method == "tools/call":
-                return await self._handle_tools_call(request, session_id)
+                return await self._handle_tools_call(request, session_id, identity)
             raise JsonRpcFault(
                 code=JsonRpcErrorCode.METHOD_NOT_FOUND,
                 message=f"Unsupported MCP method: {request.method}",
@@ -69,9 +71,20 @@ class MCPRouterService:
         self,
         request: JsonRpcRequest,
         session_id: str | None,
+        identity: RequestIdentity,
     ) -> DispatchResult:
         self._require_request_id(request)
-        session = await self._session_manager.get_or_create(session_id=session_id)
+        try:
+            session = await self._session_manager.get_or_create(
+                session_id=session_id,
+                tenant_id=identity.tenant_id,
+                principal_id=identity.principal_id,
+            )
+        except ValueError as exc:
+            raise JsonRpcFault(
+                code=JsonRpcErrorCode.IDENTITY_MISMATCH,
+                message="Session is already bound to a different tenant or principal.",
+            ) from exc
         await self._initialize_upstreams(session=session, request=request)
 
         return DispatchResult(
@@ -82,6 +95,10 @@ class MCPRouterService:
                     "serverInfo": {
                         "name": self._settings.app_name,
                         "version": self._settings.app_version,
+                    },
+                    "identity": {
+                        "tenantId": session.tenant_id,
+                        "principalId": session.principal_id,
                     },
                     "capabilities": {
                         "tools": {
@@ -96,8 +113,9 @@ class MCPRouterService:
     async def _handle_initialized_notification(
         self,
         session_id: str | None,
+        identity: RequestIdentity,
     ) -> DispatchResult:
-        session = await self._require_session(session_id)
+        session = await self._require_session(session_id, identity)
         await self._session_manager.touch(session.session_id)
         for upstream_server in await self._tool_registry.list_upstream_servers():
             await self._send_upstream_request(
@@ -115,9 +133,10 @@ class MCPRouterService:
         self,
         request: JsonRpcRequest,
         session_id: str | None,
+        identity: RequestIdentity,
     ) -> DispatchResult:
         self._require_request_id(request)
-        session = await self._require_session(session_id)
+        session = await self._require_session(session_id, identity)
         tools = await self._list_available_tools(request=request, session=session)
 
         return DispatchResult(
@@ -132,9 +151,10 @@ class MCPRouterService:
         self,
         request: JsonRpcRequest,
         session_id: str | None,
+        identity: RequestIdentity,
     ) -> DispatchResult:
         self._require_request_id(request)
-        session = await self._require_session(session_id)
+        session = await self._require_session(session_id, identity)
         tool_name = request.params.get("name")
         arguments = request.params.get("arguments", {})
 
@@ -186,7 +206,11 @@ class MCPRouterService:
                 message="A JSON-RPC id is required for request/response flows.",
             )
 
-    async def _require_session(self, session_id: str | None):
+    async def _require_session(
+        self,
+        session_id: str | None,
+        identity: RequestIdentity,
+    ):
         if session_id is None:
             raise JsonRpcFault(
                 code=JsonRpcErrorCode.SESSION_REQUIRED,
@@ -198,6 +222,24 @@ class MCPRouterService:
             raise JsonRpcFault(
                 code=JsonRpcErrorCode.SESSION_REQUIRED,
                 message="Session is missing or expired. Call initialize again.",
+            )
+        if identity.tenant_supplied and identity.tenant_id != session.tenant_id:
+            raise JsonRpcFault(
+                code=JsonRpcErrorCode.IDENTITY_MISMATCH,
+                message="X-Tenant-Id does not match the bound session tenant.",
+                data={
+                    "expectedTenantId": session.tenant_id,
+                    "receivedTenantId": identity.tenant_id,
+                },
+            )
+        if identity.principal_supplied and identity.principal_id != session.principal_id:
+            raise JsonRpcFault(
+                code=JsonRpcErrorCode.IDENTITY_MISMATCH,
+                message="X-Principal-Id does not match the bound session principal.",
+                data={
+                    "expectedPrincipalId": session.principal_id,
+                    "receivedPrincipalId": identity.principal_id,
+                },
             )
         return session
 
@@ -356,6 +398,8 @@ class MCPRouterService:
                 server=server,
                 request=request,
                 session_id=upstream_session_id,
+                tenant_id=session.tenant_id,
+                principal_id=session.principal_id,
             )
         except UpstreamTransportError as exc:
             raise JsonRpcFault(

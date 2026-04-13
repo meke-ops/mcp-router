@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 
 
@@ -80,6 +81,8 @@ for raw_line in sys.stdin:
                         "tool": tool_name,
                         "transport": "stdio",
                         "echo": arguments.get("text", ""),
+                        "tenantId": os.getenv("MCP_ROUTER_TENANT_ID"),
+                        "principalId": os.getenv("MCP_ROUTER_PRINCIPAL_ID"),
                     },
                 },
             )

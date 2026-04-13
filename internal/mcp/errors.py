@@ -14,6 +14,7 @@ class JsonRpcErrorCode(IntEnum):
     UPSTREAM_NOT_CONFIGURED = -32005
     UPSTREAM_UNAVAILABLE = -32006
     TOOL_NAME_CONFLICT = -32007
+    IDENTITY_MISMATCH = -32008
 
 
 @dataclass(slots=True)
