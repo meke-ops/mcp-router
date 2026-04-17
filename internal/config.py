@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from functools import lru_cache
 import os
+from pathlib import Path
 
 
 def _bool_env(name: str, default: bool) -> bool:
@@ -38,6 +39,30 @@ class Settings:
     jwt_audience: str | None = None
     jwt_clock_skew_seconds: int = 30
     control_plane_allowed_roles: tuple[str, ...] = ("control-plane", "admin")
+    local_state_path: str = ""
+    workspace_root: str = ""
+    user_home: str = ""
+
+    def resolved_home(self) -> Path:
+        if self.user_home:
+            return Path(self.user_home).expanduser()
+        return Path.home()
+
+    def resolved_local_state_path(self) -> Path:
+        if self.local_state_path:
+            return Path(self.local_state_path).expanduser()
+        return (
+            self.resolved_home()
+            / "Library"
+            / "Application Support"
+            / "mcp-router"
+            / "router-state.json"
+        )
+
+    def resolved_workspace_root(self) -> Path:
+        if self.workspace_root:
+            return Path(self.workspace_root).expanduser()
+        return Path.cwd()
 
 
 @lru_cache
@@ -89,4 +114,7 @@ def get_settings() -> Settings:
             ).split(",")
             if role.strip()
         ),
+        local_state_path=os.getenv("MCP_ROUTER_LOCAL_STATE_PATH", ""),
+        workspace_root=os.getenv("MCP_ROUTER_WORKSPACE_ROOT", ""),
+        user_home=os.getenv("MCP_ROUTER_USER_HOME", ""),
     )

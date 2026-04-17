@@ -1,6 +1,7 @@
 import asyncio
 from pathlib import Path
 import sys
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -224,6 +225,7 @@ def create_http_upstream_app(
 
 
 def build_test_settings(**overrides) -> Settings:
+    test_root = Path("/tmp") / f"mcp-router-test-{uuid4().hex}"
     base_settings = {
         "app_env": "test",
         "require_dependencies_for_readiness": False,
@@ -231,6 +233,9 @@ def build_test_settings(**overrides) -> Settings:
         "tool_call_rate_limit_capacity": 10,
         "tool_call_rate_limit_refill_rate": 10.0,
         "tool_call_concurrency_limit": 4,
+        "local_state_path": str(test_root / "router-state.json"),
+        "workspace_root": str(test_root / "workspace"),
+        "user_home": str(test_root / "home"),
     }
     base_settings.update(overrides)
     return Settings(**base_settings)
@@ -249,12 +254,13 @@ def build_integrated_app(**setting_overrides) -> FastAPI:
             UpstreamServerDefinition(
                 server_id="demo-http",
                 transport="streamable_http",
-                endpoint_url="http://demo-http/mcp",
+                url="http://demo-http/mcp",
             ),
             UpstreamServerDefinition(
                 server_id="demo-stdio",
                 transport="stdio",
-                command=(sys.executable, str(stdio_script)),
+                command=sys.executable,
+                args=(str(stdio_script),),
             ),
         ]
         http_transport_overrides = {

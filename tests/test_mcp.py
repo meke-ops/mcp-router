@@ -778,7 +778,7 @@ def test_tools_call_falls_back_to_hidden_upstream_on_transport_failure(
             UpstreamServerDefinition(
                 server_id="demo-http-primary",
                 transport="streamable_http",
-                endpoint_url="http://demo-http-primary/mcp",
+                url="http://demo-http-primary/mcp",
                 fallback_server_ids=("demo-http-fallback",),
                 retry_attempts=1,
                 circuit_breaker_failure_threshold=2,
@@ -787,7 +787,7 @@ def test_tools_call_falls_back_to_hidden_upstream_on_transport_failure(
             UpstreamServerDefinition(
                 server_id="demo-http-fallback",
                 transport="streamable_http",
-                endpoint_url="http://demo-http-fallback/mcp",
+                url="http://demo-http-fallback/mcp",
                 discover_tools=False,
             ),
         ],
@@ -857,7 +857,7 @@ def test_circuit_breaker_skips_primary_and_uses_fallback_on_next_call(
             UpstreamServerDefinition(
                 server_id="demo-http-primary",
                 transport="streamable_http",
-                endpoint_url="http://demo-http-primary/mcp",
+                url="http://demo-http-primary/mcp",
                 fallback_server_ids=("demo-http-fallback",),
                 retry_attempts=0,
                 circuit_breaker_failure_threshold=1,
@@ -866,7 +866,7 @@ def test_circuit_breaker_skips_primary_and_uses_fallback_on_next_call(
             UpstreamServerDefinition(
                 server_id="demo-http-fallback",
                 transport="streamable_http",
-                endpoint_url="http://demo-http-fallback/mcp",
+                url="http://demo-http-fallback/mcp",
                 discover_tools=False,
             ),
         ],

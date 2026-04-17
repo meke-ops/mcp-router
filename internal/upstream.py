@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 from dataclasses import dataclass
+import re
 
 import httpx
 
@@ -68,7 +69,7 @@ class UpstreamTransportGateway:
         request_id: str | None,
         traceparent: str | None,
     ) -> UpstreamCallResult:
-        if not server.endpoint_url:
+        if not server.url:
             raise UpstreamTransportError(
                 f"HTTP upstream is missing endpoint URL for {server.server_id}."
             )
@@ -76,11 +77,17 @@ class UpstreamTransportGateway:
         client_kwargs: dict[str, object] = {
             "timeout": server.timeout_seconds,
         }
-        transport = self._http_transport_overrides.get(server.endpoint_url)
+        transport = self._http_transport_overrides.get(server.url)
         if transport is not None:
             client_kwargs["transport"] = transport
 
         headers = {"Content-Type": "application/json"}
+        headers.update(
+            {
+                key: _expand_env_placeholders(value)
+                for key, value in server.headers.items()
+            }
+        )
         if session_id:
             headers["MCP-Session-Id"] = session_id
         if tenant_id:
@@ -95,7 +102,7 @@ class UpstreamTransportGateway:
         async with httpx.AsyncClient(**client_kwargs) as client:
             try:
                 response = await client.post(
-                    server.endpoint_url,
+                    _expand_env_placeholders(server.url),
                     json=request.model_dump(mode="json", exclude_none=True),
                     headers=headers,
                 )
@@ -139,7 +146,12 @@ class UpstreamTransportGateway:
             )
 
         env = os.environ.copy()
-        env.update(server.env)
+        env.update(
+            {
+                key: _expand_env_placeholders(value)
+                for key, value in server.env.items()
+            }
+        )
         if tenant_id:
             env["MCP_ROUTER_TENANT_ID"] = tenant_id
         if principal_id:
@@ -149,7 +161,8 @@ class UpstreamTransportGateway:
         if traceparent:
             env["TRACEPARENT"] = traceparent
         process = await asyncio.create_subprocess_exec(
-            *server.command,
+            _expand_env_placeholders(server.command),
+            *[_expand_env_placeholders(argument) for argument in server.args],
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -202,3 +215,15 @@ class UpstreamTransportGateway:
             response=JsonRpcResponse.model_validate(payload),
             server_id=server.server_id,
         )
+
+
+_ENV_PATTERN = re.compile(r"\$\{([^}:]+)(?::-([^}]+))?\}")
+
+
+def _expand_env_placeholders(value: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        name = match.group(1)
+        default = match.group(2)
+        return os.getenv(name, default or "")
+
+    return _ENV_PATTERN.sub(replace, value)

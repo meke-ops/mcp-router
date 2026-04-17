@@ -3,19 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MCP Router Control Room</title>
+    <title>MCP Router Setup Center</title>
     <style>
       :root {
-        --bg: #f4efe5;
-        --bg-ink: #19130f;
-        --panel: rgba(255, 248, 238, 0.84);
-        --panel-strong: rgba(255, 250, 244, 0.96);
-        --line: rgba(48, 29, 17, 0.14);
-        --accent: #b44f2f;
-        --accent-2: #176b5d;
-        --warning: #8f2d1f;
-        --shadow: 0 24px 60px rgba(48, 29, 17, 0.12);
-        --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+        --bg: #efe8dc;
+        --ink: #16130f;
+        --muted: rgba(22, 19, 15, 0.66);
+        --line: rgba(48, 33, 20, 0.1);
+        --panel: rgba(255, 251, 245, 0.82);
+        --panel-strong: rgba(255, 252, 247, 0.96);
+        --panel-deep: rgba(24, 19, 16, 0.9);
+        --accent: #b95a2c;
+        --accent-2: #0f6c63;
+        --accent-3: #7f3c18;
+        --danger: #9f321d;
+        --good: #0c7a59;
+        --shadow: 0 22px 60px rgba(40, 26, 16, 0.12);
+        --display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
         --sans: "Avenir Next", "Segoe UI", "Trebuchet MS", sans-serif;
       }
 
@@ -26,52 +30,59 @@
       body {
         margin: 0;
         min-height: 100vh;
+        color: var(--ink);
         font-family: var(--sans);
-        color: var(--bg-ink);
         background:
-          radial-gradient(circle at top left, rgba(180, 79, 47, 0.18), transparent 32%),
-          radial-gradient(circle at top right, rgba(23, 107, 93, 0.12), transparent 28%),
-          linear-gradient(180deg, #f8f2e9 0%, var(--bg) 50%, #efe6d8 100%);
+          radial-gradient(circle at 12% 12%, rgba(185, 90, 44, 0.22), transparent 30%),
+          radial-gradient(circle at 88% 10%, rgba(15, 108, 99, 0.18), transparent 26%),
+          linear-gradient(180deg, #f7f0e6 0%, var(--bg) 48%, #e7ddcf 100%);
       }
 
       body::before {
         content: "";
         position: fixed;
         inset: 0;
-        background-image:
-          linear-gradient(rgba(25, 19, 15, 0.035) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(25, 19, 15, 0.035) 1px, transparent 1px);
-        background-size: 28px 28px;
         pointer-events: none;
-        mask-image: radial-gradient(circle at center, black 34%, transparent 100%);
+        background-image:
+          linear-gradient(rgba(22, 19, 15, 0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(22, 19, 15, 0.025) 1px, transparent 1px);
+        background-size: 24px 24px;
+        mask-image: radial-gradient(circle at center, black 32%, transparent 100%);
       }
 
       main {
-        max-width: 1440px;
+        max-width: 1480px;
         margin: 0 auto;
-        padding: 32px 24px 56px;
+        padding: 28px 20px 48px;
       }
 
-      .masthead {
+      .hero-grid {
         display: grid;
-        grid-template-columns: 1.2fr 0.8fr;
-        gap: 24px;
-        align-items: stretch;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 22px;
       }
 
       .hero,
-      .status-card,
+      .status-panel,
       .panel,
+      .workspace,
       .composer {
-        border: 1px solid var(--line);
         background: var(--panel);
-        backdrop-filter: blur(14px);
+        border: 1px solid var(--line);
         box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      .hero,
+      .status-panel,
+      .panel,
+      .workspace,
+      .composer {
+        border-radius: 28px;
       }
 
       .hero {
         padding: 28px;
-        border-radius: 28px;
         position: relative;
         overflow: hidden;
       }
@@ -79,132 +90,199 @@
       .hero::after {
         content: "";
         position: absolute;
-        inset: auto -10% -50% auto;
-        width: 260px;
-        height: 260px;
+        right: -70px;
+        bottom: -100px;
+        width: 280px;
+        height: 280px;
         border-radius: 50%;
-        background: radial-gradient(circle, rgba(180, 79, 47, 0.32), transparent 70%);
+        background: radial-gradient(circle, rgba(185, 90, 44, 0.26), transparent 70%);
       }
 
-      .eyebrow {
+      .eyebrow,
+      .chip,
+      .mini-label {
         display: inline-flex;
         align-items: center;
-        gap: 10px;
-        padding: 6px 12px;
+        gap: 8px;
         border-radius: 999px;
-        background: rgba(25, 19, 15, 0.06);
-        font-size: 12px;
+        font-size: 11px;
+        letter-spacing: 0.16em;
         text-transform: uppercase;
-        letter-spacing: 0.18em;
+      }
+
+      .eyebrow,
+      .chip {
+        padding: 7px 12px;
+        background: rgba(22, 19, 15, 0.07);
+      }
+
+      .chip.good {
+        background: rgba(12, 122, 89, 0.12);
+        color: var(--good);
+      }
+
+      .chip.warn {
+        background: rgba(159, 50, 29, 0.11);
+        color: var(--danger);
       }
 
       h1,
       h2,
       h3 {
-        font-family: var(--serif);
         margin: 0;
+        font-family: var(--display);
         font-weight: 600;
       }
 
       h1 {
-        margin-top: 18px;
-        font-size: clamp(42px, 6vw, 86px);
-        line-height: 0.92;
-        letter-spacing: -0.04em;
-        max-width: 12ch;
+        margin-top: 16px;
+        font-size: clamp(40px, 5.8vw, 82px);
+        line-height: 0.95;
+        letter-spacing: -0.045em;
+        max-width: 11ch;
       }
 
-      .hero p {
-        max-width: 56ch;
-        font-size: 15px;
-        line-height: 1.7;
+      p {
+        margin: 0;
+      }
+
+      .hero-copy {
+        max-width: 62ch;
         margin-top: 18px;
+        font-size: 15px;
+        line-height: 1.72;
+        color: var(--muted);
       }
 
       .hero-actions,
       .toolbar {
         display: flex;
-        flex-wrap: wrap;
         gap: 12px;
-        margin-top: 20px;
+        flex-wrap: wrap;
+      }
+
+      .hero-actions {
+        margin-top: 22px;
       }
 
       button,
-      .button-link {
+      .tab-button {
         appearance: none;
-        border: none;
+        border: 1px solid transparent;
         border-radius: 999px;
-        padding: 12px 18px;
-        font: inherit;
         cursor: pointer;
-        transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+        font: inherit;
+        transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
       }
 
       button:hover,
-      .button-link:hover {
+      .tab-button:hover {
         transform: translateY(-1px);
       }
 
       .button-primary {
-        background: var(--bg-ink);
-        color: #f9f3ea;
-        box-shadow: 0 14px 26px rgba(25, 19, 15, 0.16);
+        padding: 12px 18px;
+        background: var(--panel-deep);
+        color: #f7efe4;
+        box-shadow: 0 16px 28px rgba(22, 19, 15, 0.18);
       }
 
       .button-secondary {
+        padding: 12px 18px;
         background: rgba(255, 255, 255, 0.7);
-        color: var(--bg-ink);
-        border: 1px solid var(--line);
+        color: var(--ink);
+        border-color: var(--line);
       }
 
-      .status-card {
-        border-radius: 28px;
+      .button-ghost {
+        padding: 10px 15px;
+        background: rgba(255, 255, 255, 0.62);
+        color: var(--ink);
+        border-color: rgba(22, 19, 15, 0.08);
+      }
+
+      .status-panel {
         padding: 22px;
         display: grid;
-        gap: 16px;
+        gap: 18px;
       }
 
-      .metric-grid {
+      .signal-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 14px;
+        gap: 12px;
       }
 
-      .metric {
+      .signal {
         padding: 16px;
-        border-radius: 20px;
-        background: rgba(255, 255, 255, 0.54);
-        border: 1px solid rgba(48, 29, 17, 0.08);
+        border-radius: 22px;
+        border: 1px solid rgba(48, 33, 20, 0.08);
+        background: rgba(255, 255, 255, 0.55);
       }
 
-      .metric-label {
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.16em;
-        opacity: 0.7;
+      .signal .mini-label {
+        color: rgba(22, 19, 15, 0.62);
       }
 
-      .metric-value {
-        font-family: var(--serif);
-        font-size: 34px;
+      .signal-value {
         margin-top: 6px;
+        font-family: var(--display);
+        font-size: 34px;
       }
 
-      .shell {
-        display: grid;
-        grid-template-columns: 1.15fr 0.85fr;
-        gap: 24px;
-        margin-top: 26px;
+      .auth-shell,
+      .workspace {
+        margin-top: 22px;
       }
 
-      .stack {
+      .workspace {
+        padding: 22px;
+      }
+
+      .tab-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+      }
+
+      .tab-button {
+        padding: 11px 16px;
+        background: rgba(255, 255, 255, 0.62);
+        color: rgba(22, 19, 15, 0.76);
+        border-color: rgba(22, 19, 15, 0.08);
+      }
+
+      .tab-button.active {
+        background: var(--panel-deep);
+        color: #fbf5eb;
+        box-shadow: 0 14px 22px rgba(22, 19, 15, 0.15);
+      }
+
+      .tab-pane {
+        display: none;
+      }
+
+      .tab-pane.active {
+        display: block;
+      }
+
+      .setup-grid,
+      .ops-grid {
         display: grid;
-        gap: 24px;
+        gap: 22px;
+      }
+
+      .setup-grid {
+        grid-template-columns: 1.05fr 0.95fr;
+      }
+
+      .ops-grid {
+        grid-template-columns: 1.08fr 0.92fr;
       }
 
       .panel,
       .composer {
-        border-radius: 26px;
         padding: 22px;
       }
 
@@ -212,85 +290,182 @@
       .composer-header {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
         gap: 16px;
+        align-items: flex-start;
         margin-bottom: 16px;
       }
 
       .caption {
         margin-top: 6px;
-        color: rgba(25, 19, 15, 0.72);
         font-size: 14px;
+        line-height: 1.65;
+        color: var(--muted);
+      }
+
+      .client-grid,
+      .target-grid,
+      .candidate-grid,
+      .ops-stack,
+      .advanced-stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      .client-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .target-grid,
+      .advanced-stack,
+      .ops-stack {
+        grid-template-columns: 1fr;
+      }
+
+      .candidate-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .client-card,
+      .target-card,
+      .candidate-card,
+      .verification-card,
+      .empty-state {
+        border: 1px solid rgba(48, 33, 20, 0.09);
+        border-radius: 22px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.58);
+      }
+
+      .client-card.active {
+        border-color: rgba(185, 90, 44, 0.45);
+        box-shadow: 0 12px 22px rgba(185, 90, 44, 0.12);
+      }
+
+      .client-card h3,
+      .candidate-card h3,
+      .verification-card h3 {
+        font-size: 24px;
+      }
+
+      .client-meta,
+      .candidate-meta,
+      .verification-meta {
+        margin-top: 12px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .form-grid.full {
+        grid-template-columns: 1fr;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(22, 19, 15, 0.72);
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 16px;
+        border: 1px solid rgba(48, 33, 20, 0.12);
+        background: rgba(255, 255, 255, 0.76);
+        color: var(--ink);
+        font: inherit;
+      }
+
+      textarea {
+        min-height: 150px;
+        resize: vertical;
+      }
+
+      code,
+      pre,
+      .mono {
+        font-family: "SFMono-Regular", "Menlo", "Monaco", monospace;
+      }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 12px;
         line-height: 1.6;
+      }
+
+      .preview-shell {
+        border-radius: 22px;
+        background: rgba(24, 19, 16, 0.95);
+        color: #f7efe4;
+        padding: 18px;
+        min-height: 220px;
+      }
+
+      .status-line {
+        min-height: 20px;
+        margin-top: 12px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .status-line.error {
+        color: var(--danger);
       }
 
       .table-shell {
         overflow: auto;
         border-radius: 18px;
-        border: 1px solid rgba(48, 29, 17, 0.08);
+        border: 1px solid rgba(48, 33, 20, 0.08);
         background: rgba(255, 255, 255, 0.56);
       }
 
       table {
         width: 100%;
+        min-width: 620px;
         border-collapse: collapse;
-        min-width: 640px;
       }
 
       th,
       td {
         padding: 13px 14px;
-        border-bottom: 1px solid rgba(48, 29, 17, 0.08);
         text-align: left;
         vertical-align: top;
+        border-bottom: 1px solid rgba(48, 33, 20, 0.08);
         font-size: 13px;
       }
 
       th {
         font-size: 11px;
+        letter-spacing: 0.15em;
         text-transform: uppercase;
-        letter-spacing: 0.14em;
-        color: rgba(25, 19, 15, 0.68);
-        background: rgba(255, 255, 255, 0.75);
-      }
-
-      td code,
-      .chip {
-        font-family: "SFMono-Regular", "Menlo", "Monaco", monospace;
-      }
-
-      .chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        background: rgba(25, 19, 15, 0.07);
-        font-size: 12px;
-      }
-
-      .chip.warn {
-        background: rgba(143, 45, 31, 0.1);
-        color: var(--warning);
-      }
-
-      .chip.good {
-        background: rgba(23, 107, 93, 0.1);
-        color: var(--accent-2);
+        color: rgba(22, 19, 15, 0.66);
+        background: rgba(255, 255, 255, 0.78);
       }
 
       .event-feed {
         display: grid;
         gap: 10px;
-        max-height: 520px;
+        max-height: 460px;
         overflow: auto;
-        padding-right: 4px;
       }
 
       .event-item {
-        border: 1px solid rgba(48, 29, 17, 0.08);
         border-radius: 18px;
-        padding: 14px 14px 12px;
+        border: 1px solid rgba(48, 33, 20, 0.08);
+        padding: 14px;
         background: rgba(255, 255, 255, 0.58);
       }
 
@@ -303,349 +478,506 @@
 
       .event-type {
         font-size: 11px;
+        letter-spacing: 0.15em;
         text-transform: uppercase;
-        letter-spacing: 0.16em;
         color: var(--accent);
       }
 
-      .event-detail {
-        margin-top: 10px;
-        padding: 0;
-        font-size: 12px;
-        white-space: pre-wrap;
-        color: rgba(25, 19, 15, 0.78);
+      .inline-list {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
       }
 
-      .composer-grid {
+      .checkbox-row {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+      }
+
+      .checkbox-row input {
+        width: 18px;
+        height: 18px;
+        margin-top: 3px;
+      }
+
+      .section-rule {
+        height: 1px;
+        margin: 18px 0;
+        background: linear-gradient(90deg, transparent, rgba(48, 33, 20, 0.16), transparent);
+      }
+
+      .advanced-shell {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
+        gap: 16px;
       }
 
-      .composer-grid.full {
-        grid-template-columns: 1fr;
-      }
-
-      label {
-        display: grid;
-        gap: 8px;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.14em;
-        color: rgba(25, 19, 15, 0.72);
-      }
-
-      input,
-      select,
-      textarea {
-        width: 100%;
-        border-radius: 16px;
-        border: 1px solid rgba(48, 29, 17, 0.12);
-        background: rgba(255, 255, 255, 0.76);
-        padding: 12px 14px;
-        color: var(--bg-ink);
-        font: inherit;
-      }
-
-      textarea {
-        min-height: 118px;
-        resize: vertical;
-      }
-
-      .status-line {
-        min-height: 22px;
-        margin-top: 14px;
-        font-size: 13px;
-        color: rgba(25, 19, 15, 0.72);
-      }
-
-      .status-line.error {
-        color: var(--warning);
-      }
-
-      @media (max-width: 1080px) {
-        .masthead,
-        .shell {
+      @media (max-width: 1120px) {
+        .hero-grid,
+        .setup-grid,
+        .ops-grid {
           grid-template-columns: 1fr;
         }
       }
 
-      @media (max-width: 760px) {
+      @media (max-width: 820px) {
         main {
-          padding: 18px 14px 42px;
+          padding: 18px 14px 40px;
         }
 
-        .composer-grid,
-        .metric-grid {
+        .client-grid,
+        .candidate-grid,
+        .form-grid,
+        .signal-grid {
           grid-template-columns: 1fr;
         }
 
         table {
-          min-width: 540px;
+          min-width: 520px;
         }
       }
     </style>
   </head>
   <body>
     <main>
-      <section class="masthead">
+      <section class="hero-grid">
         <article class="hero">
-          <div class="eyebrow">MCP Router / Control Room</div>
-          <h1>Operations Atlas</h1>
-          <p>
-            A live command surface for tools, policy, audit, and event flow.
-            The panel below combines registry refresh, manual control-plane edits,
-            and a real-time telemetry ribbon on one canvas.
+          <div class="eyebrow">MCP Router / Setup Center</div>
+          <h1>Connect once. Route everywhere.</h1>
+          <p class="hero-copy">
+            This surface is built for the real onboarding job: wire `mcp-router`
+            into Claude Code, Cursor, Codex, or OpenCode, then import the MCP
+            servers you already use on this machine into one router-managed hub.
           </p>
           <div class="hero-actions">
-            <button class="button-primary" id="refreshToolsButton">Refresh Registry</button>
-            <button class="button-secondary" id="reloadDashboardButton">Reload Data</button>
-          </div>
-          <div class="composer-grid full" style="margin-top: 18px;">
-            <label style="text-transform: none; letter-spacing: 0.04em;">
-              Bearer Token
-              <input
-                id="authTokenInput"
-                type="password"
-                placeholder="Paste JWT for protected /v1 and websocket access"
-                autocomplete="off"
-              />
-            </label>
-          </div>
-          <div class="toolbar" style="margin-top: 14px;">
-            <button class="button-secondary" id="saveAuthTokenButton" type="button">Save Token</button>
-            <button class="button-secondary" id="clearAuthTokenButton" type="button">Clear Token</button>
-            <div class="chip" id="authTokenStatus">Token optional</div>
+            <button class="button-primary" id="refreshRegistryButton">Refresh Registry</button>
+            <button class="button-secondary" id="reloadAllButton">Reload Dashboard</button>
           </div>
         </article>
-        <aside class="status-card">
+
+        <aside class="status-panel">
           <div>
-            <div class="eyebrow">Live posture</div>
-            <h2 style="margin-top: 12px; font-size: 34px;">Signal Board</h2>
+            <div class="eyebrow">Live Posture</div>
+            <h2 style="margin-top: 12px; font-size: 34px;">Setup Board</h2>
             <p class="caption">
-              Fast read on registry shape, policy count, event stream movement, and
-              the latest tool-call outcomes.
+              Quick read on clients, imported servers, tool visibility, and runtime flow.
             </p>
           </div>
-          <div class="metric-grid">
-            <div class="metric">
-              <div class="metric-label">Tools</div>
-              <div class="metric-value" id="toolCount">0</div>
+
+          <div class="signal-grid">
+            <div class="signal">
+              <div class="mini-label">Clients</div>
+              <div class="signal-value" id="clientCount">0</div>
             </div>
-            <div class="metric">
-              <div class="metric-label">Policies</div>
-              <div class="metric-value" id="policyCount">0</div>
+            <div class="signal">
+              <div class="mini-label">Detected Servers</div>
+              <div class="signal-value" id="candidateCount">0</div>
             </div>
-            <div class="metric">
-              <div class="metric-label">Recent Calls</div>
-              <div class="metric-value" id="toolCallCount">0</div>
+            <div class="signal">
+              <div class="mini-label">Upstreams</div>
+              <div class="signal-value" id="upstreamCount">0</div>
             </div>
-            <div class="metric">
-              <div class="metric-label">Feed</div>
-              <div class="metric-value" id="eventCount">0</div>
+            <div class="signal">
+              <div class="mini-label">Tools</div>
+              <div class="signal-value" id="toolCount">0</div>
             </div>
           </div>
-          <div class="chip" id="liveSocketStatus">WebSocket connecting</div>
+
+          <div class="inline-list">
+            <div class="chip" id="socketStatus">WebSocket connecting</div>
+            <div class="chip" id="authModeChip">Control-plane auth unknown</div>
+          </div>
         </aside>
       </section>
 
-      <section class="shell">
-        <div class="stack">
-          <section class="panel">
-            <div class="panel-header">
-              <div>
-                <h2 style="font-size: 30px;">Tool Registry</h2>
-                <div class="caption">
-                  Registered tools from discovery or manual registration.
-                </div>
-              </div>
-              <div class="chip" id="toolRegistrySummary">waiting</div>
+      <section class="workspace auth-shell">
+        <div class="panel-header">
+          <div>
+            <h2 style="font-size: 30px;">Session Gate</h2>
+            <div class="caption">
+              Save the dashboard JWT for protected control-plane and event access.
             </div>
-            <div class="table-shell">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Server</th>
-                    <th>Version</th>
-                    <th>Description</th>
-                  </tr>
-                </thead>
-                <tbody id="toolsTable"></tbody>
-              </table>
-            </div>
-          </section>
+          </div>
+        </div>
+        <div class="form-grid">
+          <label>
+            Dashboard Bearer Token
+            <input id="dashboardTokenInput" type="password" autocomplete="off" placeholder="Paste JWT if /v1 is protected" />
+          </label>
+          <label>
+            Router Default URL
+            <input id="routerUrlMirror" readonly />
+          </label>
+        </div>
+        <div class="toolbar" style="margin-top: 14px;">
+          <button class="button-secondary" id="saveDashboardTokenButton" type="button">Save Token</button>
+          <button class="button-ghost" id="clearDashboardTokenButton" type="button">Clear Token</button>
+          <div class="chip" id="dashboardTokenStatus">Token optional</div>
+        </div>
+        <div class="status-line" id="dashboardStatus"></div>
+      </section>
 
-          <section class="panel">
-            <div class="panel-header">
-              <div>
-                <h2 style="font-size: 30px;">Policies</h2>
-                <div class="caption">
-                  Ordered allow and deny rules that shape tool execution.
-                </div>
-              </div>
-              <div class="chip" id="policySummary">waiting</div>
-            </div>
-            <div class="table-shell">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Rule</th>
-                    <th>Effect</th>
-                    <th>Priority</th>
-                    <th>Targets</th>
-                  </tr>
-                </thead>
-                <tbody id="policiesTable"></tbody>
-              </table>
-            </div>
-          </section>
-
-          <section class="panel">
-            <div class="panel-header">
-              <div>
-                <h2 style="font-size: 30px;">Tool Calls</h2>
-                <div class="caption">
-                  Audit trail for runtime execution outcomes.
-                </div>
-              </div>
-              <div class="chip" id="toolCallSummary">waiting</div>
-            </div>
-            <div class="table-shell">
-              <table>
-                <thead>
-                  <tr>
-                    <th>When</th>
-                    <th>Tool</th>
-                    <th>Server</th>
-                    <th>Outcome</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody id="toolCallsTable"></tbody>
-              </table>
-            </div>
-          </section>
+      <section class="workspace">
+        <div class="tab-row">
+          <button class="tab-button active" data-tab="connect">Connect Clients</button>
+          <button class="tab-button" data-tab="import">Import Existing Servers</button>
+          <button class="tab-button" data-tab="operations">Operations</button>
         </div>
 
-        <div class="stack">
-          <section class="composer">
-            <div class="composer-header">
-              <div>
-                <h3 style="font-size: 28px;">Policy Composer</h3>
-                <div class="caption">
-                  Add or overwrite a rule without leaving the dashboard.
+        <div class="tab-pane active" id="tab-connect">
+          <div class="setup-grid">
+            <div class="ops-stack">
+              <section class="panel">
+                <div class="panel-header">
+                  <div>
+                    <h2 style="font-size: 30px;">Client Targets</h2>
+                    <div class="caption">
+                      Pick the MCP client you want to wire into this router first.
+                    </div>
+                  </div>
+                  <div class="chip" id="clientSummary">loading</div>
                 </div>
-              </div>
-            </div>
-            <form id="policyForm">
-              <div class="composer-grid">
-                <label>Rule Id <input name="ruleId" required /></label>
-                <label>Effect
-                  <select name="effect">
-                    <option value="allow">allow</option>
-                    <option value="deny">deny</option>
-                  </select>
-                </label>
-                <label>Priority <input name="priority" type="number" value="50" /></label>
-                <label>Tool Names <input name="toolNames" placeholder="demo.http.reverse,demo.*" /></label>
-              </div>
-              <div class="composer-grid full" style="margin-top: 12px;">
-                <label>Reason <textarea name="reason" required></textarea></label>
-                <label>Tenant Ids <input name="tenantIds" placeholder="tenant-a,tenant-b" /></label>
-              </div>
-              <div class="toolbar">
-                <button class="button-primary" type="submit">Upsert Policy</button>
-              </div>
-              <div class="status-line" id="policyFormStatus"></div>
-            </form>
-          </section>
+                <div class="client-grid" id="clientCards"></div>
+              </section>
 
-          <section class="composer">
-            <div class="composer-header">
-              <div>
-                <h3 style="font-size: 28px;">Upstream Register</h3>
-                <div class="caption">
-                  Add a new route target to the in-memory registry.
+              <section class="panel">
+                <div class="panel-header">
+                  <div>
+                    <h2 style="font-size: 30px;">Install Locations</h2>
+                    <div class="caption">
+                      These are the detected user or project config targets for the selected client.
+                    </div>
+                  </div>
                 </div>
-              </div>
+                <div class="target-grid" id="installTargets"></div>
+              </section>
             </div>
-            <form id="upstreamForm">
-              <div class="composer-grid">
-                <label>Server Id <input name="serverId" required /></label>
-                <label>Transport
-                  <select name="transport">
-                    <option value="streamable_http">streamable_http</option>
-                    <option value="stdio">stdio</option>
-                  </select>
-                </label>
-                <label>Endpoint Url <input name="endpointUrl" placeholder="http://127.0.0.1:9001/mcp" /></label>
-                <label>Fallback Server Ids <input name="fallbackServerIds" placeholder="standby-http" /></label>
-              </div>
-              <div class="toolbar">
-                <button class="button-primary" type="submit">Register Upstream</button>
-              </div>
-              <div class="status-line" id="upstreamFormStatus"></div>
-            </form>
-          </section>
 
-          <section class="composer">
-            <div class="composer-header">
-              <div>
-                <h3 style="font-size: 28px;">Manual Tool Register</h3>
-                <div class="caption">
-                  Attach a tool definition to an existing upstream server.
+            <div class="ops-stack">
+              <section class="composer">
+                <div class="composer-header">
+                  <div>
+                    <h3 style="font-size: 28px;">Connection Wizard</h3>
+                    <div class="caption">
+                      Set scope, URL, token mapping, then preview and apply the exact config patch.
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <form id="toolForm">
-              <div class="composer-grid">
-                <label>Tool Name <input name="name" required /></label>
-                <label>Server Id <input name="serverId" required /></label>
-              </div>
-              <div class="composer-grid full" style="margin-top: 12px;">
-                <label>Description <input name="description" required /></label>
-                <label>Input Schema JSON
-                  <textarea name="inputSchema" required>{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}</textarea>
-                </label>
-              </div>
-              <div class="toolbar">
-                <button class="button-primary" type="submit">Register Tool</button>
-              </div>
-              <div class="status-line" id="toolFormStatus"></div>
-            </form>
-          </section>
 
-          <section class="panel">
-            <div class="panel-header">
-              <div>
-                <h2 style="font-size: 30px;">Event Feed</h2>
-                <div class="caption">
-                  WebSocket-fed stream of control-plane and runtime events.
+                <form id="clientSetupForm">
+                  <div class="form-grid">
+                    <label>
+                      Client
+                      <select id="clientSelect" name="clientId"></select>
+                    </label>
+                    <label>
+                      Scope
+                      <select id="scopeSelect" name="scope"></select>
+                    </label>
+                    <label>
+                      MCP URL
+                      <input id="clientMcpUrlInput" name="mcpUrl" placeholder="https://router.example.com/mcp" />
+                    </label>
+                    <label>
+                      Server Name
+                      <input id="serverNameInput" name="serverName" value="mcp-router" />
+                    </label>
+                  </div>
+
+                  <div class="form-grid full" style="margin-top: 12px;">
+                    <label>
+                      Client Config Path Override
+                      <input id="configPathInput" name="configPath" placeholder="Optional. Leave empty to use detected default." />
+                    </label>
+                    <label>
+                      Client Bearer Token
+                      <input id="clientTokenInput" name="token" type="password" autocomplete="off" placeholder="Only needed if router auth is enabled" />
+                    </label>
+                  </div>
+
+                  <div class="toolbar" style="margin-top: 16px;">
+                    <button class="button-primary" type="button" id="previewClientButton">Preview Config</button>
+                    <button class="button-secondary" type="button" id="applyClientButton">Apply And Verify</button>
+                  </div>
+                </form>
+
+                <div class="status-line" id="clientSetupStatus"></div>
+              </section>
+
+              <section class="panel">
+                <div class="panel-header">
+                  <div>
+                    <h2 style="font-size: 30px;">Config Preview</h2>
+                    <div class="caption">
+                      Generated install command, target path, auth mode, and merged config snapshot.
+                    </div>
+                  </div>
+                  <div class="chip" id="previewSummary">waiting</div>
+                </div>
+                <div class="target-card" id="previewMeta">
+                  <div class="caption">Preview a client setup to see config details.</div>
+                </div>
+                <div class="preview-shell" style="margin-top: 14px;">
+                  <pre id="previewContent">No preview generated yet.</pre>
+                </div>
+              </section>
+
+              <section class="panel">
+                <div class="panel-header">
+                  <div>
+                    <h2 style="font-size: 30px;">Verification</h2>
+                    <div class="caption">
+                      After apply, router verification confirms session bootstrap and visible tools.
+                    </div>
+                  </div>
+                </div>
+                <div class="verification-card" id="verificationCard">
+                  <div class="caption">Apply a client config to run verification.</div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-pane" id="tab-import">
+          <div class="setup-grid">
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2 style="font-size: 30px;">Detected Candidates</h2>
+                  <div class="caption">
+                    Known config paths are scanned for importable stdio and streamable HTTP servers.
+                  </div>
+                </div>
+                <div class="toolbar">
+                  <button class="button-secondary" id="refreshDiscoveryButton" type="button">Refresh Discovery</button>
+                  <button class="button-primary" id="importCandidatesButton" type="button">Import Selected</button>
                 </div>
               </div>
-              <div class="chip good" id="eventSummary">0 live entries</div>
+              <div class="candidate-grid" id="candidateGrid"></div>
+              <div class="status-line" id="importStatus"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2 style="font-size: 30px;">Router Upstreams</h2>
+                  <div class="caption">
+                    Persisted route targets loaded by the router from env plus local state.
+                  </div>
+                </div>
+                <div class="chip" id="upstreamSummary">waiting</div>
+              </div>
+              <div class="table-shell">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Server</th>
+                      <th>Transport</th>
+                      <th>Target</th>
+                      <th>Managed</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="upstreamsTable"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="tab-pane" id="tab-operations">
+          <div class="ops-grid">
+            <div class="ops-stack">
+              <section class="panel">
+                <div class="panel-header">
+                  <div>
+                    <h2 style="font-size: 30px;">Tool Registry</h2>
+                    <div class="caption">
+                      Current discovered and manual tools the router can expose.
+                    </div>
+                  </div>
+                  <div class="chip" id="toolRegistrySummary">waiting</div>
+                </div>
+                <div class="table-shell">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Server</th>
+                        <th>Version</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody id="toolsTable"></tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section class="panel">
+                <div class="panel-header">
+                  <div>
+                    <h2 style="font-size: 30px;">Policies</h2>
+                    <div class="caption">
+                      Ordered allow and deny rules that shape tool execution.
+                    </div>
+                  </div>
+                  <div class="chip" id="policySummary">waiting</div>
+                </div>
+                <div class="table-shell">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Rule</th>
+                        <th>Effect</th>
+                        <th>Priority</th>
+                        <th>Targets</th>
+                      </tr>
+                    </thead>
+                    <tbody id="policiesTable"></tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section class="panel">
+                <div class="panel-header">
+                  <div>
+                    <h2 style="font-size: 30px;">Tool Calls</h2>
+                    <div class="caption">
+                      Recent runtime execution outcomes across the routed tool graph.
+                    </div>
+                  </div>
+                  <div class="chip" id="toolCallSummary">waiting</div>
+                </div>
+                <div class="table-shell">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>When</th>
+                        <th>Tool</th>
+                        <th>Server</th>
+                        <th>Outcome</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="toolCallsTable"></tbody>
+                  </table>
+                </div>
+              </section>
             </div>
-            <div class="event-feed" id="eventFeed"></div>
-          </section>
+
+            <div class="ops-stack">
+              <section class="panel">
+                <div class="panel-header">
+                  <div>
+                    <h2 style="font-size: 30px;">Event Feed</h2>
+                    <div class="caption">
+                      Live control-plane and runtime events over WebSocket.
+                    </div>
+                  </div>
+                  <div class="chip good" id="eventSummary">0 live entries</div>
+                </div>
+                <div class="event-feed" id="eventFeed"></div>
+              </section>
+
+              <section class="composer">
+                <div class="composer-header">
+                  <div>
+                    <h3 style="font-size: 28px;">Advanced Operations</h3>
+                    <div class="caption">
+                      Manual registry and policy edits stay available here for low-level control.
+                    </div>
+                  </div>
+                </div>
+
+                <div class="advanced-shell">
+                  <div class="section-rule"></div>
+
+                  <div class="advanced-stack">
+                    <form id="policyForm">
+                      <div class="form-grid">
+                        <label>Rule Id <input name="ruleId" required /></label>
+                        <label>Effect
+                          <select name="effect">
+                            <option value="allow">allow</option>
+                            <option value="deny">deny</option>
+                          </select>
+                        </label>
+                        <label>Priority <input name="priority" type="number" value="50" /></label>
+                        <label>Tool Names <input name="toolNames" placeholder="demo.http.reverse,demo.*" /></label>
+                      </div>
+                      <div class="form-grid full" style="margin-top: 12px;">
+                        <label>Reason <textarea name="reason" required></textarea></label>
+                        <label>Tenant Ids <input name="tenantIds" placeholder="tenant-a,tenant-b" /></label>
+                      </div>
+                      <div class="toolbar" style="margin-top: 14px;">
+                        <button class="button-primary" type="submit">Upsert Policy</button>
+                      </div>
+                      <div class="status-line" id="policyFormStatus"></div>
+                    </form>
+
+                    <form id="upstreamForm">
+                      <div class="form-grid">
+                        <label>Server Id <input name="serverId" required /></label>
+                        <label>Transport
+                          <select name="transport">
+                            <option value="streamable_http">streamable_http</option>
+                            <option value="stdio">stdio</option>
+                          </select>
+                        </label>
+                        <label>URL <input name="url" placeholder="http://127.0.0.1:9001/mcp" /></label>
+                        <label>Command <input name="command" placeholder="/usr/bin/python3" /></label>
+                        <label>Args CSV <input name="args" placeholder="server.py,--debug" /></label>
+                        <label>Fallback Server Ids <input name="fallbackServerIds" placeholder="standby-http" /></label>
+                      </div>
+                      <div class="toolbar" style="margin-top: 14px;">
+                        <button class="button-primary" type="submit">Register Upstream</button>
+                      </div>
+                      <div class="status-line" id="upstreamFormStatus"></div>
+                    </form>
+
+                    <form id="toolForm">
+                      <div class="form-grid">
+                        <label>Tool Name <input name="name" required /></label>
+                        <label>Server Id <input name="serverId" required /></label>
+                      </div>
+                      <div class="form-grid full" style="margin-top: 12px;">
+                        <label>Description <input name="description" required /></label>
+                        <label>Input Schema JSON
+                          <textarea name="inputSchema" required>{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}</textarea>
+                        </label>
+                      </div>
+                      <div class="toolbar" style="margin-top: 14px;">
+                        <button class="button-primary" type="submit">Register Tool</button>
+                      </div>
+                      <div class="status-line" id="toolFormStatus"></div>
+                    </form>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
         </div>
       </section>
     </main>
 
     <script>
       const state = {
+        authToken: window.sessionStorage.getItem("dashboardBearerToken") || "",
+        activeTab: "connect",
+        clients: [],
+        selectedClient: "claude_code",
+        discoveryCandidates: [],
+        upstreams: [],
         tools: [],
         policies: [],
         toolCalls: [],
         events: [],
+        latestPreview: null,
+        latestVerification: null,
         socket: null,
-        authToken: window.sessionStorage.getItem("dashboardBearerToken") || "",
+        setupMeta: null,
       };
-
-      const toolsTable = document.getElementById("toolsTable");
-      const policiesTable = document.getElementById("policiesTable");
-      const toolCallsTable = document.getElementById("toolCallsTable");
-      const eventFeed = document.getElementById("eventFeed");
 
       function splitCsv(value) {
         return value
@@ -662,25 +994,14 @@
         return headers;
       }
 
-      function renderAuthTokenStatus() {
-        const status = document.getElementById("authTokenStatus");
-        if (state.authToken) {
-          status.textContent = "Token loaded";
-          status.className = "chip good";
-          return;
-        }
-        status.textContent = "Token optional";
-        status.className = "chip";
-      }
-
       async function fetchJson(url, options = {}) {
         const response = await fetch(url, {
           ...options,
           headers: buildHeaders(options.headers || {}),
         });
         if (!response.ok) {
-          const detail = await response.text();
-          throw new Error(detail || response.statusText);
+          const text = await response.text();
+          throw new Error(text || response.statusText);
         }
         return response.json();
       }
@@ -691,146 +1012,418 @@
         node.className = isError ? "status-line error" : "status-line";
       }
 
-      function renderTools() {
+      function defaultMcpUrl() {
+        return `${window.location.origin}/mcp`;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function persistDashboardToken(token) {
+        state.authToken = token.trim();
+        if (state.authToken) {
+          window.sessionStorage.setItem("dashboardBearerToken", state.authToken);
+        } else {
+          window.sessionStorage.removeItem("dashboardBearerToken");
+        }
+        renderDashboardTokenStatus();
+      }
+
+      function renderDashboardTokenStatus() {
+        const node = document.getElementById("dashboardTokenStatus");
+        if (state.authToken) {
+          node.textContent = "Control-plane token loaded";
+          node.className = "chip good";
+        } else {
+          node.textContent = "Token optional";
+          node.className = "chip";
+        }
+      }
+
+      function renderHeroStats() {
+        document.getElementById("clientCount").textContent = String(state.clients.length);
+        document.getElementById("candidateCount").textContent = String(state.discoveryCandidates.length);
+        document.getElementById("upstreamCount").textContent = String(state.upstreams.length);
         document.getElementById("toolCount").textContent = String(state.tools.length);
-        document.getElementById("toolRegistrySummary").textContent = state.tools.length
-          ? state.tools.map((item) => item.serverId).slice(0, 2).join(" / ")
+      }
+
+      function renderTabs() {
+        document.querySelectorAll(".tab-button").forEach((button) => {
+          button.classList.toggle("active", button.dataset.tab === state.activeTab);
+        });
+        document.querySelectorAll(".tab-pane").forEach((pane) => {
+          pane.classList.toggle("active", pane.id === `tab-${state.activeTab}`);
+        });
+      }
+
+      function ensureScopeOptions(client) {
+        const scopeSelect = document.getElementById("scopeSelect");
+        scopeSelect.innerHTML = "";
+        const targets = client?.targets || [];
+        const scopes = [...new Set(targets.map((item) => item.scope))];
+        (scopes.length ? scopes : ["user"]).forEach((scope) => {
+          const option = document.createElement("option");
+          option.value = scope;
+          option.textContent = scope;
+          scopeSelect.appendChild(option);
+        });
+      }
+
+      function selectedClientObject() {
+        return state.clients.find((item) => item.clientId === state.selectedClient) || null;
+      }
+
+      function syncSetupInputsFromSelection() {
+        const client = selectedClientObject();
+        if (!client) {
+          return;
+        }
+        document.getElementById("clientSelect").value = client.clientId;
+        ensureScopeOptions(client);
+        const scopeSelect = document.getElementById("scopeSelect");
+        const selectedTarget = (client.targets || []).find((target) => target.scope === scopeSelect.value) || client.targets?.[0];
+        if (selectedTarget) {
+          scopeSelect.value = selectedTarget.scope;
+          document.getElementById("configPathInput").placeholder = selectedTarget.path;
+        } else {
+          document.getElementById("configPathInput").placeholder = "Optional override path";
+        }
+      }
+
+      function renderClients() {
+        const clientCards = document.getElementById("clientCards");
+        const clientSelect = document.getElementById("clientSelect");
+        clientSelect.innerHTML = "";
+        document.getElementById("clientSummary").textContent = state.clients.length
+          ? `${state.clients.length} supported clients`
+          : "no clients";
+
+        clientCards.innerHTML = state.clients.length
+          ? state.clients.map((client) => `
+              <button type="button" class="client-card ${client.clientId === state.selectedClient ? "active" : ""}" data-client-id="${client.clientId}">
+                <div class="eyebrow">${escapeHtml(client.label)}</div>
+                <h3 style="margin-top: 14px;">${escapeHtml(client.label)}</h3>
+                <p class="caption">Target count: ${(client.targets || []).length}. Default route uses this router's current /mcp URL.</p>
+                <div class="client-meta">
+                  ${(client.targets || []).map((target) => `<span class="chip ${target.exists ? "good" : ""}">${escapeHtml(target.scope)} ${target.exists ? "detected" : "new"}</span>`).join("")}
+                </div>
+              </button>
+            `).join("")
+          : `<article class="empty-state">No supported client metadata loaded yet.</article>`;
+
+        state.clients.forEach((client) => {
+          const option = document.createElement("option");
+          option.value = client.clientId;
+          option.textContent = client.label;
+          clientSelect.appendChild(option);
+        });
+        syncSetupInputsFromSelection();
+      }
+
+      function renderTargets() {
+        const client = selectedClientObject();
+        const node = document.getElementById("installTargets");
+        if (!client) {
+          node.innerHTML = `<article class="empty-state">Choose a client to see install targets.</article>`;
+          return;
+        }
+        node.innerHTML = (client.targets || []).map((target) => `
+          <article class="target-card">
+            <div class="inline-list">
+              <span class="chip">${escapeHtml(target.scope)}</span>
+              <span class="chip ${target.exists ? "good" : ""}">${target.exists ? "exists" : "will be created"}</span>
+            </div>
+            <div class="caption" style="margin-top: 10px;"><code>${escapeHtml(target.path)}</code></div>
+          </article>
+        `).join("");
+      }
+
+      function renderPreview() {
+        const meta = document.getElementById("previewMeta");
+        const content = document.getElementById("previewContent");
+        const summary = document.getElementById("previewSummary");
+        if (!state.latestPreview) {
+          summary.textContent = "waiting";
+          meta.innerHTML = `<div class="caption">Preview a client setup to see config details.</div>`;
+          content.textContent = "No preview generated yet.";
+          return;
+        }
+        const item = state.latestPreview;
+        summary.textContent = item.clientId;
+        meta.innerHTML = `
+          <div class="inline-list">
+            <span class="chip">${escapeHtml(item.scope)}</span>
+            <span class="chip ${item.authMode === "bearer" ? "good" : ""}">${escapeHtml(item.authMode)}</span>
+            <span class="chip">${escapeHtml(item.serverName)}</span>
+          </div>
+          <div class="caption" style="margin-top: 12px;"><strong>Config Path</strong><br /><code>${escapeHtml(item.configPath)}</code></div>
+          <div class="caption" style="margin-top: 12px;"><strong>Install Command</strong><br /><code>${escapeHtml(item.installCommand || "No CLI shortcut for this client")}</code></div>
+        `;
+        content.textContent = item.mergedConfigText;
+      }
+
+      function renderVerification() {
+        const node = document.getElementById("verificationCard");
+        if (!state.latestVerification) {
+          node.innerHTML = `<div class="caption">Apply a client config to run verification.</div>`;
+          return;
+        }
+        const item = state.latestVerification;
+        node.innerHTML = `
+          <h3>Router responded</h3>
+          <div class="verification-meta">
+            <span class="chip good">${escapeHtml(item.authMode)}</span>
+            <span class="chip">${escapeHtml(item.sessionId || "no-session")}</span>
+            <span class="chip">${item.toolCount} tools visible</span>
+          </div>
+          <div class="caption" style="margin-top: 12px;">
+            <strong>Identity</strong><br />
+            Tenant: <code>${escapeHtml(item.identity.tenantId)}</code><br />
+            Principal: <code>${escapeHtml(item.identity.principalId)}</code><br />
+            Roles: <code>${escapeHtml((item.identity.roles || []).join(", ") || "none")}</code>
+          </div>
+        `;
+      }
+
+      function renderCandidates() {
+        const node = document.getElementById("candidateGrid");
+        node.innerHTML = state.discoveryCandidates.length
+          ? state.discoveryCandidates.map((candidate) => `
+              <article class="candidate-card">
+                <label class="checkbox-row" style="text-transform: none; letter-spacing: normal;">
+                  <input type="checkbox" data-candidate-id="${escapeHtml(candidate.candidateId)}" ${candidate.importable ? "" : "disabled"} />
+                  <div>
+                    <div class="eyebrow">${escapeHtml(candidate.sourceLabel)} / ${escapeHtml(candidate.scope)}</div>
+                    <h3 style="margin-top: 12px;">${escapeHtml(candidate.serverName)}</h3>
+                    <p class="caption">${escapeHtml(candidate.summary)}</p>
+                    <div class="candidate-meta">
+                      <span class="chip">${escapeHtml(candidate.transport)}</span>
+                      <span class="chip ${candidate.importable ? "good" : "warn"}">${candidate.importable ? "importable" : "skipped"}</span>
+                      ${(candidate.envKeys || []).length ? `<span class="chip">env: ${escapeHtml(candidate.envKeys.join(", "))}</span>` : ""}
+                    </div>
+                    <div class="caption" style="margin-top: 12px;"><code>${escapeHtml(candidate.configPath)}</code></div>
+                    ${candidate.importReason ? `<div class="caption" style="margin-top: 10px; color: var(--danger);">${escapeHtml(candidate.importReason)}</div>` : ""}
+                  </div>
+                </label>
+              </article>
+            `).join("")
+          : `<article class="empty-state">No known MCP client configs were found in the current discovery paths.</article>`;
+      }
+
+      function renderUpstreams() {
+        document.getElementById("upstreamSummary").textContent = state.upstreams.length
+          ? `${state.upstreams.length} upstreams`
           : "empty";
-        toolsTable.innerHTML = state.tools.length
-          ? state.tools
-              .map(
-                (tool) => `
-                  <tr>
-                    <td><strong>${tool.name}</strong></td>
-                    <td><code>${tool.serverId}</code></td>
-                    <td><code>${tool.version}</code></td>
-                    <td>${tool.definition.description || "-"}</td>
-                  </tr>
-                `
-              )
-              .join("")
+        const table = document.getElementById("upstreamsTable");
+        table.innerHTML = state.upstreams.length
+          ? state.upstreams.map((item) => `
+              <tr>
+                <td>
+                  <strong>${escapeHtml(item.serverId)}</strong><br />
+                  <span class="caption">${escapeHtml(item.originClient || "manual")}</span>
+                </td>
+                <td><span class="chip">${escapeHtml(item.transport)}</span></td>
+                <td><code>${escapeHtml(item.url || [item.command || "", ...(item.args || [])].join(" ").trim() || "-")}</code></td>
+                <td>${escapeHtml(item.managedBy || "-")}</td>
+                <td><button class="button-ghost delete-upstream-button" data-server-id="${escapeHtml(item.serverId)}" type="button">Delete</button></td>
+              </tr>
+            `).join("")
+          : `<tr><td colspan="5">No upstreams registered yet.</td></tr>`;
+      }
+
+      function renderTools() {
+        document.getElementById("toolRegistrySummary").textContent = state.tools.length
+          ? state.tools.map((tool) => tool.serverId).slice(0, 2).join(" / ")
+          : "empty";
+        document.getElementById("toolsTable").innerHTML = state.tools.length
+          ? state.tools.map((tool) => `
+              <tr>
+                <td><strong>${escapeHtml(tool.name)}</strong></td>
+                <td><code>${escapeHtml(tool.serverId)}</code></td>
+                <td><code>${escapeHtml(tool.version)}</code></td>
+                <td>${escapeHtml(tool.definition.description || "-")}</td>
+              </tr>
+            `).join("")
           : `<tr><td colspan="4">No tools registered yet.</td></tr>`;
       }
 
       function renderPolicies() {
-        document.getElementById("policyCount").textContent = String(state.policies.length);
         document.getElementById("policySummary").textContent = state.policies.length
-          ? state.policies.map((item) => item.effect).slice(0, 3).join(" / ")
+          ? state.policies.map((policy) => policy.effect).slice(0, 3).join(" / ")
           : "empty";
-        policiesTable.innerHTML = state.policies.length
-          ? state.policies
-              .map(
-                (policy) => `
-                  <tr>
-                    <td>
-                      <strong>${policy.ruleId}</strong><br />
-                      <span class="caption">${policy.reason}</span>
-                    </td>
-                    <td><span class="chip ${policy.effect === "deny" ? "warn" : "good"}">${policy.effect}</span></td>
-                    <td>${policy.priority}</td>
-                    <td>${(policy.toolNames || []).join(", ") || "all tools"}</td>
-                  </tr>
-                `
-              )
-              .join("")
+        document.getElementById("policiesTable").innerHTML = state.policies.length
+          ? state.policies.map((policy) => `
+              <tr>
+                <td>
+                  <strong>${escapeHtml(policy.ruleId)}</strong><br />
+                  <span class="caption">${escapeHtml(policy.reason)}</span>
+                </td>
+                <td><span class="chip ${policy.effect === "deny" ? "warn" : "good"}">${escapeHtml(policy.effect)}</span></td>
+                <td>${policy.priority}</td>
+                <td>${escapeHtml((policy.toolNames || []).join(", ") || "all tools")}</td>
+              </tr>
+            `).join("")
           : `<tr><td colspan="4">No policies configured.</td></tr>`;
       }
 
       function renderToolCalls() {
-        document.getElementById("toolCallCount").textContent = String(state.toolCalls.length);
         document.getElementById("toolCallSummary").textContent = state.toolCalls.length
           ? state.toolCalls[0].outcome
           : "idle";
-        toolCallsTable.innerHTML = state.toolCalls.length
-          ? state.toolCalls
-              .map(
-                (item) => `
-                  <tr>
-                    <td>${new Date(item.recorded_at).toLocaleTimeString()}</td>
-                    <td><strong>${item.tool_name}</strong></td>
-                    <td><code>${item.server_id}</code></td>
-                    <td>${item.outcome}</td>
-                    <td>${item.status_code}</td>
-                  </tr>
-                `
-              )
-              .join("")
+        document.getElementById("toolCallsTable").innerHTML = state.toolCalls.length
+          ? state.toolCalls.map((item) => `
+              <tr>
+                <td>${new Date(item.recorded_at).toLocaleTimeString()}</td>
+                <td><strong>${escapeHtml(item.tool_name)}</strong></td>
+                <td><code>${escapeHtml(item.server_id)}</code></td>
+                <td>${escapeHtml(item.outcome)}</td>
+                <td>${escapeHtml(item.status_code)}</td>
+              </tr>
+            `).join("")
           : `<tr><td colspan="5">No tool calls captured yet.</td></tr>`;
       }
 
       function renderEvents() {
-        document.getElementById("eventCount").textContent = String(state.events.length);
         document.getElementById("eventSummary").textContent = `${state.events.length} live entries`;
-        eventFeed.innerHTML = state.events.length
-          ? state.events
-              .slice(0, 30)
-              .map(
-                (event) => `
-                  <article class="event-item">
-                    <div class="event-topline">
-                      <div class="event-type">${event.event_type}</div>
-                      <div class="chip">${new Date(event.recorded_at).toLocaleTimeString()}</div>
-                    </div>
-                    <pre class="event-detail">${JSON.stringify(event.detail, null, 2)}</pre>
-                  </article>
-                `
-              )
-              .join("")
+        document.getElementById("eventFeed").innerHTML = state.events.length
+          ? state.events.slice(0, 30).map((event) => `
+              <article class="event-item">
+                <div class="event-topline">
+                  <div class="event-type">${escapeHtml(event.event_type)}</div>
+                  <div class="chip">${new Date(event.recorded_at).toLocaleTimeString()}</div>
+                </div>
+                <pre style="margin-top: 10px;">${escapeHtml(JSON.stringify(event.detail, null, 2))}</pre>
+              </article>
+            `).join("")
           : `<article class="event-item">Waiting for live events.</article>`;
       }
 
-      async function loadDashboardData() {
+      async function loadSetupData() {
+        const [clientsPayload, discoveryPayload, upstreamsPayload] = await Promise.all([
+          fetchJson("/v1/setup/clients"),
+          fetchJson("/v1/setup/discovery"),
+          fetchJson("/v1/upstreams"),
+        ]);
+        state.clients = clientsPayload.items || [];
+        state.setupMeta = clientsPayload;
+        state.discoveryCandidates = discoveryPayload.items || [];
+        state.upstreams = upstreamsPayload.items || [];
+        document.getElementById("routerUrlMirror").value = clientsPayload.defaultMcpUrl || defaultMcpUrl();
+        document.getElementById("authModeChip").textContent = clientsPayload.authEnabled
+          ? "Router auth enabled"
+          : "Router auth disabled";
+        document.getElementById("authModeChip").className = clientsPayload.authEnabled ? "chip warn" : "chip good";
+        if (!state.clients.some((client) => client.clientId === state.selectedClient) && state.clients[0]) {
+          state.selectedClient = state.clients[0].clientId;
+        }
+        renderClients();
+        renderTargets();
+        renderCandidates();
+        renderUpstreams();
+        renderHeroStats();
+      }
+
+      async function loadOperationsData() {
         const [tools, policies, toolCalls, events] = await Promise.all([
           fetchJson("/v1/tools"),
           fetchJson("/v1/policies"),
           fetchJson("/v1/audit/tool-calls?limit=12"),
           fetchJson("/v1/audit/events?limit=16"),
         ]);
-        state.tools = tools.items;
-        state.policies = policies.items;
-        state.toolCalls = toolCalls.items;
-        state.events = events.items;
+        state.tools = tools.items || [];
+        state.policies = policies.items || [];
+        state.toolCalls = toolCalls.items || [];
+        state.events = events.items || [];
         renderTools();
         renderPolicies();
         renderToolCalls();
         renderEvents();
+        renderHeroStats();
+      }
+
+      async function reloadAllData() {
+        await Promise.all([loadSetupData(), loadOperationsData()]);
       }
 
       async function refreshRegistry() {
         await fetchJson("/v1/tools/refresh", { method: "POST" });
-        await loadDashboardData();
+        await loadOperationsData();
+      }
+
+      function selectedCandidateIds() {
+        return [...document.querySelectorAll("[data-candidate-id]:checked")].map((node) => node.dataset.candidateId);
+      }
+
+      async function previewClientConfig() {
+        const payload = collectClientPayload();
+        const response = await fetchJson("/v1/setup/client-preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        state.latestPreview = response.item;
+        renderPreview();
+      }
+
+      async function applyClientConfig() {
+        const payload = collectClientPayload();
+        const response = await fetchJson("/v1/setup/client-apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        state.latestPreview = response.item;
+        state.latestVerification = response.verification;
+        renderPreview();
+        renderVerification();
+      }
+
+      function collectClientPayload() {
+        const configPath = document.getElementById("configPathInput").value.trim();
+        return {
+          clientId: document.getElementById("clientSelect").value,
+          scope: document.getElementById("scopeSelect").value,
+          mcpUrl: document.getElementById("clientMcpUrlInput").value.trim() || defaultMcpUrl(),
+          token: document.getElementById("clientTokenInput").value.trim() || null,
+          configPath: configPath || null,
+          serverName: document.getElementById("serverNameInput").value.trim() || "mcp-router",
+        };
       }
 
       function connectEvents() {
         if (state.socket) {
-          const previousSocket = state.socket;
+          const previous = state.socket;
           state.socket = null;
-          previousSocket.close();
+          previous.close();
         }
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const query = new URLSearchParams();
         if (state.authToken) {
           query.set("access_token", state.authToken);
         }
-        const socketUrl = `${protocol}//${window.location.host}/v1/events/ws${
-          query.toString() ? `?${query.toString()}` : ""
-        }`;
+        const socketUrl = `${protocol}//${window.location.host}/v1/events/ws${query.toString() ? `?${query.toString()}` : ""}`;
         const socket = new WebSocket(socketUrl);
         state.socket = socket;
         socket.addEventListener("open", () => {
           if (state.socket !== socket) {
             return;
           }
-          document.getElementById("liveSocketStatus").textContent = "WebSocket live";
-          document.getElementById("liveSocketStatus").className = "chip good";
+          document.getElementById("socketStatus").textContent = "WebSocket live";
+          document.getElementById("socketStatus").className = "chip good";
         });
         socket.addEventListener("close", () => {
           if (state.socket !== socket) {
             return;
           }
-          document.getElementById("liveSocketStatus").textContent = "WebSocket reconnecting";
-          document.getElementById("liveSocketStatus").className = "chip warn";
-          window.setTimeout(connectEvents, 1200);
+          document.getElementById("socketStatus").textContent = "WebSocket reconnecting";
+          document.getElementById("socketStatus").className = "chip warn";
+          window.setTimeout(connectEvents, 1500);
         });
         socket.addEventListener("message", (event) => {
           if (state.socket !== socket) {
@@ -843,46 +1436,137 @@
         });
       }
 
-      function persistAuthToken(rawToken) {
-        state.authToken = rawToken.trim();
-        if (state.authToken) {
-          window.sessionStorage.setItem("dashboardBearerToken", state.authToken);
-        } else {
-          window.sessionStorage.removeItem("dashboardBearerToken");
-        }
-        renderAuthTokenStatus();
-      }
-
-      document.getElementById("refreshToolsButton").addEventListener("click", async () => {
-        await refreshRegistry();
+      document.querySelectorAll(".tab-button").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.activeTab = button.dataset.tab;
+          renderTabs();
+        });
       });
 
-      document.getElementById("reloadDashboardButton").addEventListener("click", async () => {
-        await loadDashboardData();
-      });
-
-      document.getElementById("saveAuthTokenButton").addEventListener("click", async () => {
-        const input = document.getElementById("authTokenInput");
-        persistAuthToken(input.value);
+      document.getElementById("saveDashboardTokenButton").addEventListener("click", async () => {
+        persistDashboardToken(document.getElementById("dashboardTokenInput").value);
         connectEvents();
         try {
-          await loadDashboardData();
-          setStatusLine("toolFormStatus", "Dashboard token updated.");
+          await reloadAllData();
+          setStatusLine("dashboardStatus", "Dashboard token saved and data reloaded.");
         } catch (error) {
-          setStatusLine("toolFormStatus", `Token saved, but load failed: ${String(error)}`, true);
+          setStatusLine("dashboardStatus", `Token saved, but reload failed: ${String(error)}`, true);
         }
       });
 
-      document.getElementById("clearAuthTokenButton").addEventListener("click", async () => {
-        const input = document.getElementById("authTokenInput");
-        input.value = "";
-        persistAuthToken("");
+      document.getElementById("clearDashboardTokenButton").addEventListener("click", async () => {
+        document.getElementById("dashboardTokenInput").value = "";
+        persistDashboardToken("");
         connectEvents();
         try {
-          await loadDashboardData();
-          setStatusLine("toolFormStatus", "Dashboard token cleared.");
+          await reloadAllData();
+          setStatusLine("dashboardStatus", "Dashboard token cleared.");
         } catch (error) {
-          setStatusLine("toolFormStatus", `Token cleared: ${String(error)}`, true);
+          setStatusLine("dashboardStatus", `Token cleared, but reload failed: ${String(error)}`, true);
+        }
+      });
+
+      document.getElementById("reloadAllButton").addEventListener("click", async () => {
+        try {
+          await reloadAllData();
+          setStatusLine("dashboardStatus", "Dashboard reloaded.");
+        } catch (error) {
+          setStatusLine("dashboardStatus", String(error), true);
+        }
+      });
+
+      document.getElementById("refreshRegistryButton").addEventListener("click", async () => {
+        try {
+          await refreshRegistry();
+          setStatusLine("dashboardStatus", "Registry refreshed.");
+        } catch (error) {
+          setStatusLine("dashboardStatus", String(error), true);
+        }
+      });
+
+      document.getElementById("clientCards").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-client-id]");
+        if (!button) {
+          return;
+        }
+        state.selectedClient = button.dataset.clientId;
+        renderClients();
+        renderTargets();
+      });
+
+      document.getElementById("clientSelect").addEventListener("change", (event) => {
+        state.selectedClient = event.target.value;
+        renderClients();
+        renderTargets();
+      });
+
+      document.getElementById("scopeSelect").addEventListener("change", () => {
+        renderTargets();
+      });
+
+      document.getElementById("previewClientButton").addEventListener("click", async () => {
+        try {
+          await previewClientConfig();
+          setStatusLine("clientSetupStatus", "Client config preview generated.");
+        } catch (error) {
+          setStatusLine("clientSetupStatus", String(error), true);
+        }
+      });
+
+      document.getElementById("applyClientButton").addEventListener("click", async () => {
+        try {
+          await applyClientConfig();
+          setStatusLine("clientSetupStatus", "Client config applied and verified.");
+        } catch (error) {
+          setStatusLine("clientSetupStatus", String(error), true);
+        }
+      });
+
+      document.getElementById("refreshDiscoveryButton").addEventListener("click", async () => {
+        try {
+          await loadSetupData();
+          setStatusLine("importStatus", "Discovery refreshed.");
+        } catch (error) {
+          setStatusLine("importStatus", String(error), true);
+        }
+      });
+
+      document.getElementById("importCandidatesButton").addEventListener("click", async () => {
+        const candidateIds = selectedCandidateIds();
+        if (!candidateIds.length) {
+          setStatusLine("importStatus", "Select at least one importable candidate.", true);
+          return;
+        }
+        try {
+          const response = await fetchJson("/v1/setup/import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ candidateIds, refresh: true }),
+          });
+          await reloadAllData();
+          setStatusLine(
+            "importStatus",
+            `Imported ${response.item.importedCount}, updated ${response.item.updatedCount}, tools visible ${response.item.toolCount}.`
+          );
+        } catch (error) {
+          setStatusLine("importStatus", String(error), true);
+        }
+      });
+
+      document.getElementById("upstreamsTable").addEventListener("click", async (event) => {
+        const button = event.target.closest(".delete-upstream-button");
+        if (!button) {
+          return;
+        }
+        try {
+          await fetchJson(`/v1/upstreams/${encodeURIComponent(button.dataset.serverId)}`, {
+            method: "DELETE",
+          });
+          await loadSetupData();
+          await loadOperationsData();
+          setStatusLine("importStatus", `Deleted upstream ${button.dataset.serverId}.`);
+        } catch (error) {
+          setStatusLine("importStatus", String(error), true);
         }
       });
 
@@ -906,8 +1590,8 @@
               obligations: [],
             }),
           });
+          await loadOperationsData();
           setStatusLine("policyFormStatus", "Policy saved.");
-          await loadDashboardData();
         } catch (error) {
           setStatusLine("policyFormStatus", String(error), true);
         }
@@ -923,14 +1607,16 @@
             body: JSON.stringify({
               server_id: formData.get("serverId"),
               transport: formData.get("transport"),
-              endpoint_url: formData.get("endpointUrl") || null,
-              fallback_server_ids: splitCsv(String(formData.get("fallbackServerIds") || "")),
-              command: [],
+              url: formData.get("url") || null,
+              command: formData.get("command") || null,
+              args: splitCsv(String(formData.get("args") || "")),
               env: {},
+              headers: {},
+              fallback_server_ids: splitCsv(String(formData.get("fallbackServerIds") || "")),
             }),
           });
+          await loadSetupData();
           setStatusLine("upstreamFormStatus", "Upstream registered.");
-          await loadDashboardData();
         } catch (error) {
           setStatusLine("upstreamFormStatus", String(error), true);
         }
@@ -953,18 +1639,23 @@
               timeoutSeconds: null,
             }),
           });
+          await loadOperationsData();
           setStatusLine("toolFormStatus", "Tool registered.");
-          await loadDashboardData();
         } catch (error) {
           setStatusLine("toolFormStatus", String(error), true);
         }
       });
 
-      document.getElementById("authTokenInput").value = state.authToken;
-      renderAuthTokenStatus();
+      document.getElementById("dashboardTokenInput").value = state.authToken;
+      document.getElementById("clientMcpUrlInput").value = defaultMcpUrl();
+      document.getElementById("routerUrlMirror").value = defaultMcpUrl();
+      renderDashboardTokenStatus();
+      renderTabs();
+      renderPreview();
+      renderVerification();
 
-      loadDashboardData().catch((error) => {
-        setStatusLine("toolFormStatus", `Initial load failed: ${String(error)}`, true);
+      reloadAllData().catch((error) => {
+        setStatusLine("dashboardStatus", `Initial load failed: ${String(error)}`, true);
       });
       connectEvents();
     </script>

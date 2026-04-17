@@ -2,7 +2,7 @@ from dataclasses import asdict
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from api.http.dependencies import get_services, require_control_plane_principal
 from internal.audit import (
@@ -55,15 +55,31 @@ class ToolRegistrationPayload(BaseModel):
 class UpstreamRegistrationPayload(BaseModel):
     server_id: str
     transport: str
+    url: str | None = None
     endpoint_url: str | None = None
-    command: list[str] = Field(default_factory=list)
+    command: str | list[str] | None = None
+    args: list[str] = Field(default_factory=list)
     env: dict[str, str] = Field(default_factory=dict)
+    headers: dict[str, str] = Field(default_factory=dict)
     timeout_seconds: float = 10.0
     discover_tools: bool = True
     fallback_server_ids: list[str] = Field(default_factory=list)
     retry_attempts: int = 0
     circuit_breaker_failure_threshold: int = 3
     circuit_breaker_recovery_seconds: float = 30.0
+    origin_client: str | None = None
+    origin_path: str | None = None
+    managed_by: str | None = None
+    last_imported_at: str | None = None
+
+    @model_validator(mode="after")
+    def normalize_command(self) -> "UpstreamRegistrationPayload":
+        if isinstance(self.command, list):
+            parts = [item for item in self.command if item]
+            self.command = parts[0] if parts else None
+            if parts[1:]:
+                self.args = parts[1:]
+        return self
 
 
 @router.get("/tools")
@@ -176,15 +192,22 @@ async def list_upstreams(
             {
                 "serverId": upstream.server_id,
                 "transport": upstream.transport,
+                "url": upstream.url,
                 "endpointUrl": upstream.endpoint_url,
-                "command": list(upstream.command),
+                "command": upstream.command,
+                "args": list(upstream.args),
                 "env": upstream.env,
+                "headers": upstream.headers,
                 "timeoutSeconds": upstream.timeout_seconds,
                 "discoverTools": upstream.discover_tools,
                 "fallbackServerIds": list(upstream.fallback_server_ids),
                 "retryAttempts": upstream.retry_attempts,
                 "circuitBreakerFailureThreshold": upstream.circuit_breaker_failure_threshold,
                 "circuitBreakerRecoverySeconds": upstream.circuit_breaker_recovery_seconds,
+                "originClient": upstream.origin_client,
+                "originPath": upstream.origin_path,
+                "managedBy": upstream.managed_by,
+                "lastImportedAt": upstream.last_imported_at,
             }
             for upstream in upstreams
         ]
@@ -201,17 +224,24 @@ async def register_upstream(
     upstream = UpstreamServerDefinition(
         server_id=payload.server_id,
         transport=payload.transport,  # type: ignore[arg-type]
-        endpoint_url=payload.endpoint_url,
-        command=tuple(payload.command),
+        url=payload.url or payload.endpoint_url,
+        command=payload.command if isinstance(payload.command, str) else None,
+        args=tuple(payload.args),
         env=payload.env,
+        headers=payload.headers,
         timeout_seconds=payload.timeout_seconds,
         discover_tools=payload.discover_tools,
         fallback_server_ids=tuple(payload.fallback_server_ids),
         retry_attempts=payload.retry_attempts,
         circuit_breaker_failure_threshold=payload.circuit_breaker_failure_threshold,
         circuit_breaker_recovery_seconds=payload.circuit_breaker_recovery_seconds,
+        origin_client=payload.origin_client,
+        origin_path=payload.origin_path,
+        managed_by=payload.managed_by or "dashboard",
+        last_imported_at=payload.last_imported_at,
     )
     await services.tool_registry.upsert_upstream_server(upstream)
+    services.state_store.upsert_upstream(upstream)
     await _record_control_event(
         services=services,
         request_context=_request_context(request),
@@ -219,6 +249,26 @@ async def register_upstream(
         detail={"serverId": payload.server_id, "transport": payload.transport},
     )
     return {"item": {"serverId": upstream.server_id}}
+
+
+@router.delete("/upstreams/{server_id}")
+async def delete_upstream(
+    request: Request,
+    server_id: str,
+    services: ServiceContainer = Depends(get_services),
+    _: AuthenticatedPrincipal | None = Depends(require_control_plane_principal),
+) -> dict[str, object]:
+    deleted = await services.tool_registry.delete_upstream_server(server_id)
+    if deleted is None:
+        raise HTTPException(status_code=404, detail="Upstream not found.")
+    services.state_store.delete_upstream(server_id)
+    await _record_control_event(
+        services=services,
+        request_context=_request_context(request),
+        event_type="control.upstream.deleted",
+        detail={"serverId": server_id},
+    )
+    return {"deleted": server_id}
 
 
 @router.get("/policies")

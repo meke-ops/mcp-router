@@ -77,15 +77,151 @@ class RegisteredTool:
 class UpstreamServerDefinition:
     server_id: str
     transport: TransportKind
-    endpoint_url: str | None = None
-    command: tuple[str, ...] = ()
+    url: str | None = None
+    command: str | None = None
+    args: tuple[str, ...] = ()
     env: dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict)
     timeout_seconds: float = 10.0
     discover_tools: bool = True
     fallback_server_ids: tuple[str, ...] = ()
     retry_attempts: int = 0
     circuit_breaker_failure_threshold: int = 3
     circuit_breaker_recovery_seconds: float = 30.0
+    origin_client: str | None = None
+    origin_path: str | None = None
+    managed_by: str | None = None
+    last_imported_at: str | None = None
+
+    @property
+    def endpoint_url(self) -> str | None:
+        return self.url
+
+    @property
+    def command_line(self) -> tuple[str, ...]:
+        if self.command is None:
+            return ()
+        return (self.command, *self.args)
+
+    def to_record(self) -> dict[str, Any]:
+        return {
+            "server_id": self.server_id,
+            "transport": self.transport,
+            "url": self.url,
+            "command": self.command,
+            "args": list(self.args),
+            "env": dict(self.env),
+            "headers": dict(self.headers),
+            "timeout_seconds": self.timeout_seconds,
+            "discover_tools": self.discover_tools,
+            "fallback_server_ids": list(self.fallback_server_ids),
+            "retry_attempts": self.retry_attempts,
+            "circuit_breaker_failure_threshold": self.circuit_breaker_failure_threshold,
+            "circuit_breaker_recovery_seconds": self.circuit_breaker_recovery_seconds,
+            "origin_client": self.origin_client,
+            "origin_path": self.origin_path,
+            "managed_by": self.managed_by,
+            "last_imported_at": self.last_imported_at,
+        }
+
+    @classmethod
+    def from_record(cls, raw_item: dict[str, Any]) -> "UpstreamServerDefinition":
+        if not isinstance(raw_item, dict):
+            raise ValueError("Each upstream definition must be a JSON object.")
+        legacy_command = raw_item.get("command")
+        command: str | None
+        args: tuple[str, ...]
+        if isinstance(legacy_command, list):
+            if not all(isinstance(part, str) for part in legacy_command):
+                raise ValueError("Upstream command must be a JSON array of strings.")
+            command = legacy_command[0] if legacy_command else None
+            args = tuple(legacy_command[1:])
+        else:
+            if legacy_command is not None and not isinstance(legacy_command, str):
+                raise ValueError("Upstream command must be a string.")
+            raw_args = raw_item.get("args", [])
+            if not isinstance(raw_args, list) or not all(
+                isinstance(part, str) for part in raw_args
+            ):
+                raise ValueError("Upstream args must be a JSON array of strings.")
+            command = legacy_command
+            args = tuple(raw_args)
+
+        env = raw_item.get("env", {})
+        if not isinstance(env, dict) or not all(
+            isinstance(key, str) and isinstance(value, str) for key, value in env.items()
+        ):
+            raise ValueError("Upstream env must be a JSON object of string pairs.")
+        headers = raw_item.get("headers", {})
+        if not isinstance(headers, dict) or not all(
+            isinstance(key, str) and isinstance(value, str)
+            for key, value in headers.items()
+        ):
+            raise ValueError("Upstream headers must be a JSON object of string pairs.")
+
+        url = raw_item.get("url", raw_item.get("endpoint_url"))
+        if url is not None and not isinstance(url, str):
+            raise ValueError("Upstream url must be a string when provided.")
+
+        return cls(
+            server_id=str(raw_item["server_id"]),
+            transport=raw_item["transport"],
+            url=url,
+            command=command,
+            args=args,
+            env=env,
+            headers=headers,
+            timeout_seconds=float(raw_item.get("timeout_seconds", 10.0)),
+            discover_tools=bool(raw_item.get("discover_tools", True)),
+            fallback_server_ids=tuple(
+                str(item) for item in raw_item.get("fallback_server_ids", [])
+            ),
+            retry_attempts=int(raw_item.get("retry_attempts", 0)),
+            circuit_breaker_failure_threshold=int(
+                raw_item.get("circuit_breaker_failure_threshold", 3)
+            ),
+            circuit_breaker_recovery_seconds=float(
+                raw_item.get("circuit_breaker_recovery_seconds", 30.0)
+            ),
+            origin_client=(
+                str(raw_item["origin_client"])
+                if raw_item.get("origin_client") is not None
+                else None
+            ),
+            origin_path=(
+                str(raw_item["origin_path"])
+                if raw_item.get("origin_path") is not None
+                else None
+            ),
+            managed_by=(
+                str(raw_item["managed_by"])
+                if raw_item.get("managed_by") is not None
+                else None
+            ),
+            last_imported_at=(
+                str(raw_item["last_imported_at"])
+                if raw_item.get("last_imported_at") is not None
+                else None
+            ),
+        )
+
+    def normalized_signature(self) -> str:
+        payload = {
+            "transport": self.transport,
+            "url": (self.url or "").rstrip("/"),
+            "command": self.command or "",
+            "args": list(self.args),
+        }
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()[:16]
+
+    def to_discovery_summary(self) -> str:
+        if self.transport == "streamable_http":
+            return self.url or "-"
+        if self.command is None:
+            return "-"
+        return " ".join([self.command, *self.args])
 
 
 def build_tool_version(definition: ToolDefinition) -> ToolVersion:
@@ -189,6 +325,20 @@ class InMemoryToolRegistry:
         async with self._lock:
             self._upstream_servers[upstream_server.server_id] = upstream_server
             return upstream_server
+
+    async def delete_upstream_server(self, server_id: str) -> UpstreamServerDefinition | None:
+        async with self._lock:
+            return self._upstream_servers.pop(server_id, None)
+
+    async def find_upstream_by_signature(
+        self,
+        signature: str,
+    ) -> UpstreamServerDefinition | None:
+        async with self._lock:
+            for upstream_server in self._upstream_servers.values():
+                if upstream_server.normalized_signature() == signature:
+                    return upstream_server
+        return None
 
     def _merged_tools(self) -> dict[str, RegisteredTool]:
         return {**self._discovered_tools, **self._manual_tools}

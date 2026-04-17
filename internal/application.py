@@ -25,6 +25,8 @@ from internal.policy import InMemoryPolicyStore, PolicyEngine, PolicyObligation,
 from internal.resilience import InMemoryCircuitBreakerStore
 from internal.registry import InMemoryToolRegistry, UpstreamServerDefinition
 from internal.session_manager import InMemorySessionManager
+from internal.setup import SetupService
+from internal.state_store import RouterStateStore
 from internal.tracing import InMemoryTraceRecorder, build_inbound_span_context
 from internal.traffic_control import InMemoryTrafficController
 from internal.upstream import UpstreamTransportGateway
@@ -94,7 +96,11 @@ def create_service_container(
     policy_rules: list[PolicyRule] | None = None,
     http_transport_overrides: dict[str, httpx.AsyncBaseTransport] | None = None,
 ) -> ServiceContainer:
-    resolved_upstream_servers = upstream_servers or _load_upstream_servers(settings)
+    state_store = RouterStateStore(settings.resolved_local_state_path())
+    resolved_upstream_servers = _merge_upstream_sources(
+        env_upstreams=upstream_servers or _load_upstream_servers(settings),
+        persisted_upstreams=state_store.load().upstreams,
+    )
     resolved_policy_rules = policy_rules or _load_policy_rules(settings)
     session_manager = InMemorySessionManager(ttl_seconds=settings.session_ttl_seconds)
     tool_registry = InMemoryToolRegistry(upstream_servers=resolved_upstream_servers)
@@ -124,6 +130,12 @@ def create_service_container(
         traffic_controller=traffic_controller,
         upstream_gateway=upstream_gateway,
     )
+    setup_service = SetupService(
+        settings=settings,
+        state_store=state_store,
+        tool_registry=tool_registry,
+        mcp_service=mcp_service,
+    )
 
     return ServiceContainer(
         settings=settings,
@@ -139,6 +151,8 @@ def create_service_container(
         traffic_controller=traffic_controller,
         upstream_gateway=upstream_gateway,
         mcp_service=mcp_service,
+        state_store=state_store,
+        setup_service=setup_service,
     )
 
 
@@ -152,42 +166,22 @@ def _load_upstream_servers(settings: Settings) -> list[UpstreamServerDefinition]
 
     upstream_servers: list[UpstreamServerDefinition] = []
     for raw_item in raw_items:
-        if not isinstance(raw_item, dict):
-            raise ValueError("Each upstream definition must be a JSON object.")
-        command = raw_item.get("command", [])
-        if not isinstance(command, list) or not all(
-            isinstance(part, str) for part in command
-        ):
-            raise ValueError("Upstream command must be a JSON array of strings.")
-        env = raw_item.get("env", {})
-        if not isinstance(env, dict) or not all(
-            isinstance(key, str) and isinstance(value, str) for key, value in env.items()
-        ):
-            raise ValueError("Upstream env must be a JSON object of string pairs.")
-
-        upstream_servers.append(
-            UpstreamServerDefinition(
-                server_id=str(raw_item["server_id"]),
-                transport=raw_item["transport"],
-                endpoint_url=raw_item.get("endpoint_url"),
-                command=tuple(command),
-                env=env,
-                timeout_seconds=float(raw_item.get("timeout_seconds", 10.0)),
-                discover_tools=bool(raw_item.get("discover_tools", True)),
-                fallback_server_ids=tuple(
-                    str(item) for item in raw_item.get("fallback_server_ids", [])
-                ),
-                retry_attempts=int(raw_item.get("retry_attempts", 0)),
-                circuit_breaker_failure_threshold=int(
-                    raw_item.get("circuit_breaker_failure_threshold", 3)
-                ),
-                circuit_breaker_recovery_seconds=float(
-                    raw_item.get("circuit_breaker_recovery_seconds", 30.0)
-                ),
-            )
-        )
+        upstream_servers.append(UpstreamServerDefinition.from_record(raw_item))
 
     return upstream_servers
+
+
+def _merge_upstream_sources(
+    *,
+    env_upstreams: list[UpstreamServerDefinition] | None,
+    persisted_upstreams: list[UpstreamServerDefinition],
+) -> list[UpstreamServerDefinition]:
+    merged = {
+        upstream.server_id: upstream for upstream in env_upstreams or []
+    }
+    for upstream in persisted_upstreams:
+        merged[upstream.server_id] = upstream
+    return list(merged.values())
 
 
 def _load_policy_rules(settings: Settings) -> list[PolicyRule] | None:

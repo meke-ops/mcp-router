@@ -9,6 +9,8 @@ from internal.policy import InMemoryPolicyStore, PolicyEngine
 from internal.resilience import InMemoryCircuitBreakerStore
 from internal.registry import InMemoryToolRegistry
 from internal.session_manager import InMemorySessionManager
+from internal.state_store import RouterStateStore
+from internal.setup import SetupService
 from internal.tracing import InMemoryTraceRecorder
 from internal.traffic_control import InMemoryTrafficController
 from internal.upstream import UpstreamTransportGateway
@@ -29,3 +31,5 @@ class ServiceContainer:
     traffic_controller: InMemoryTrafficController
     upstream_gateway: UpstreamTransportGateway
     mcp_service: MCPRouterService
+    state_store: RouterStateStore
+    setup_service: SetupService
