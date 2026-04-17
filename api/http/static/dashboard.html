@@ -306,7 +306,9 @@
       .target-grid,
       .candidate-grid,
       .ops-stack,
-      .advanced-stack {
+      .advanced-stack,
+      .guide-grid,
+      .step-grid {
         display: grid;
         gap: 14px;
       }
@@ -325,11 +327,22 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
+      .guide-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .step-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
       .client-card,
       .target-card,
       .candidate-card,
       .verification-card,
-      .empty-state {
+      .empty-state,
+      .guide-card,
+      .step-card,
+      .quick-card {
         border: 1px solid rgba(48, 33, 20, 0.09);
         border-radius: 22px;
         padding: 16px;
@@ -349,8 +362,75 @@
 
       .client-meta,
       .candidate-meta,
-      .verification-meta {
+      .verification-meta,
+      .guide-meta {
         margin-top: 12px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .guide-card {
+        background:
+          linear-gradient(135deg, rgba(255, 251, 245, 0.82), rgba(250, 244, 237, 0.88)),
+          rgba(255, 255, 255, 0.6);
+      }
+
+      .guide-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-start;
+      }
+
+      .guide-kicker {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(22, 19, 15, 0.56);
+      }
+
+      .step-card {
+        background: rgba(255, 255, 255, 0.68);
+      }
+
+      .step-index {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(185, 90, 44, 0.12);
+        color: var(--accent);
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .quick-card {
+        background: rgba(24, 19, 16, 0.93);
+        color: #f8f1e7;
+      }
+
+      .quick-card .caption {
+        color: rgba(248, 241, 231, 0.76);
+      }
+
+      .quick-card code,
+      .quick-card pre {
+        color: #fff3e4;
+      }
+
+      .copy-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 12px;
+      }
+
+      .pill-list {
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
@@ -528,7 +608,8 @@
         .client-grid,
         .candidate-grid,
         .form-grid,
-        .signal-grid {
+        .signal-grid,
+        .step-grid {
           grid-template-columns: 1fr;
         }
 
@@ -654,12 +735,25 @@
             </div>
 
             <div class="ops-stack">
+              <section class="panel">
+                <div class="panel-header">
+                  <div>
+                    <h2 style="font-size: 30px;">Selected Client Guide</h2>
+                    <div class="caption">
+                      The panel below explains exactly what happens for the selected client before you preview anything.
+                    </div>
+                  </div>
+                  <div class="chip" id="guideSummary">waiting</div>
+                </div>
+                <div class="guide-grid" id="selectedClientGuide"></div>
+              </section>
+
               <section class="composer">
                 <div class="composer-header">
                   <div>
                     <h3 style="font-size: 28px;">Connection Wizard</h3>
                     <div class="caption">
-                      Set scope, URL, token mapping, then preview and apply the exact config patch.
+                      Step through the setup with visible defaults instead of guessing where each client stores MCP config.
                     </div>
                   </div>
                 </div>
@@ -698,6 +792,7 @@
                   <div class="toolbar" style="margin-top: 16px;">
                     <button class="button-primary" type="button" id="previewClientButton">Preview Config</button>
                     <button class="button-secondary" type="button" id="applyClientButton">Apply And Verify</button>
+                    <button class="button-ghost" type="button" id="copyMcpUrlButton">Copy MCP URL</button>
                   </div>
                 </form>
 
@@ -979,6 +1074,49 @@
         setupMeta: null,
       };
 
+      const clientPlaybooks = {
+        claude_code: {
+          intro: "Claude Code can be wired in user or project scope. Project scope is ideal when the repo should carry the router binding with it.",
+          output: "Writes an MCP entry into `.mcp.json` for project scope or `~/.claude.json` for user scope.",
+          steps: [
+            "Choose `project` if this repo should carry the MCP setup, or `user` if you want it globally.",
+            "Preview the generated config to confirm the router URL and optional bearer token.",
+            "Apply the config, then reopen Claude Code so the new MCP entry is picked up."
+          ],
+          tips: ["Best for shared repo setup", "Supports project and user scopes", "HTTP router binding"],
+        },
+        cursor: {
+          intro: "Cursor reads `mcp.json` directly. This flow writes the right file for either project or global scope so you do not need to hand-edit JSON.",
+          output: "Writes `.cursor/mcp.json` in the repo or `~/.cursor/mcp.json` globally.",
+          steps: [
+            "Choose `project` to keep the binding inside this repo, or `user` for all workspaces.",
+            "Preview the exact `mcpServers` patch that will be written for `mcp-router`.",
+            "Apply it, then reload Cursor or reopen the workspace so the MCP server appears."
+          ],
+          tips: ["Strong default for repo-local setup", "JSON patch preview", "No manual schema guessing"],
+        },
+        codex: {
+          intro: "Codex uses `~/.codex/config.toml`, so the main question is not \"where do I paste this\" anymore. This flow writes the `mcp_servers.mcp-router` block for you.",
+          output: "Updates `~/.codex/config.toml` and appends or replaces the `[mcp_servers.mcp-router]` block.",
+          steps: [
+            "Leave scope at `user` because Codex setup is stored in the user config file.",
+            "Preview to see the exact TOML block and the `codex mcp add ... --url ...` command side by side.",
+            "Apply the change, then restart Codex so it reloads `~/.codex/config.toml`."
+          ],
+          tips: ["Best answer for \"How do I connect router to Codex?\"", "Writes TOML, not JSON", "Restart Codex after apply"],
+        },
+        opencode: {
+          intro: "OpenCode stores MCP servers under the `mcp` key. This flow writes the remote MCP entry into the existing JSON config without losing other settings.",
+          output: "Updates `~/.config/opencode/opencode.json` or a project `opencode.json/jsonc` file.",
+          steps: [
+            "Use `user` for your main OpenCode install, or override the path if you want a project config file.",
+            "Preview the merged OpenCode config with the `mcp-router` remote server entry.",
+            "Apply it, then reopen OpenCode so the remote MCP route is available."
+          ],
+          tips: ["Keeps existing config intact", "Remote MCP entry", "JSON merge instead of overwrite"],
+        },
+      };
+
       function splitCsv(value) {
         return value
           .split(",")
@@ -1144,6 +1282,60 @@
         `).join("");
       }
 
+      function renderSelectedClientGuide() {
+        const client = selectedClientObject();
+        const node = document.getElementById("selectedClientGuide");
+        const summary = document.getElementById("guideSummary");
+        if (!client) {
+          summary.textContent = "waiting";
+          node.innerHTML = `<article class="empty-state">Choose a client to see its setup guide.</article>`;
+          return;
+        }
+        const playbook = clientPlaybooks[client.clientId] || {
+          intro: "Use the wizard below to preview and apply the client config.",
+          output: "A client-specific MCP config entry will be generated.",
+          steps: ["Choose the target scope.", "Preview the config.", "Apply and verify the setup."],
+          tips: [],
+        };
+        const recommendedTarget = (client.targets || [])[0];
+        const recommendedScope = client.clientId === "codex" ? "user" : (recommendedTarget?.scope || "user");
+        summary.textContent = client.label;
+        node.innerHTML = `
+          <article class="guide-card">
+            <div class="guide-header">
+              <div>
+                <div class="guide-kicker">${escapeHtml(client.label)} onboarding</div>
+                <h3 style="margin-top: 12px; font-size: 32px;">How this connection works</h3>
+                <p class="caption" style="margin-top: 12px;">${escapeHtml(playbook.intro)}</p>
+              </div>
+              <div class="pill-list">
+                <span class="chip good">Recommended scope: ${escapeHtml(recommendedScope)}</span>
+                <span class="chip">${escapeHtml((client.targets || []).length)} target${(client.targets || []).length === 1 ? "" : "s"}</span>
+              </div>
+            </div>
+            <div class="guide-meta">
+              ${(playbook.tips || []).map((tip) => `<span class="chip">${escapeHtml(tip)}</span>`).join("")}
+            </div>
+            <div class="step-grid" style="margin-top: 16px;">
+              ${(playbook.steps || []).map((step, index) => `
+                <article class="step-card">
+                  <div class="step-index">0${index + 1}</div>
+                  <div class="caption" style="margin-top: 12px;">${escapeHtml(step)}</div>
+                </article>
+              `).join("")}
+            </div>
+            <article class="quick-card" style="margin-top: 16px;">
+              <div class="guide-kicker" style="color: rgba(248, 241, 231, 0.6);">What will be written</div>
+              <p class="caption" style="margin-top: 10px;">${escapeHtml(playbook.output)}</p>
+              <div class="copy-row">
+                <span class="chip">${escapeHtml(recommendedTarget?.path || "Preview to see target path")}</span>
+                <button class="button-ghost" type="button" id="copyRecommendedPathButton">Copy Path</button>
+              </div>
+            </article>
+          </article>
+        `;
+      }
+
       function renderPreview() {
         const meta = document.getElementById("previewMeta");
         const content = document.getElementById("previewContent");
@@ -1164,6 +1356,10 @@
           </div>
           <div class="caption" style="margin-top: 12px;"><strong>Config Path</strong><br /><code>${escapeHtml(item.configPath)}</code></div>
           <div class="caption" style="margin-top: 12px;"><strong>Install Command</strong><br /><code>${escapeHtml(item.installCommand || "No CLI shortcut for this client")}</code></div>
+          <div class="copy-row">
+            <button class="button-ghost copy-preview-command-button" type="button" ${item.installCommand ? "" : "disabled"}>Copy Install Command</button>
+            <button class="button-ghost copy-preview-path-button" type="button">Copy Config Path</button>
+          </div>
         `;
         content.textContent = item.mergedConfigText;
       }
@@ -1324,6 +1520,7 @@
         }
         renderClients();
         renderTargets();
+        renderSelectedClientGuide();
         renderCandidates();
         renderUpstreams();
         renderHeroStats();
@@ -1492,16 +1689,19 @@
         state.selectedClient = button.dataset.clientId;
         renderClients();
         renderTargets();
+        renderSelectedClientGuide();
       });
 
       document.getElementById("clientSelect").addEventListener("change", (event) => {
         state.selectedClient = event.target.value;
         renderClients();
         renderTargets();
+        renderSelectedClientGuide();
       });
 
       document.getElementById("scopeSelect").addEventListener("change", () => {
         renderTargets();
+        renderSelectedClientGuide();
       });
 
       document.getElementById("previewClientButton").addEventListener("click", async () => {
@@ -1519,6 +1719,61 @@
           setStatusLine("clientSetupStatus", "Client config applied and verified.");
         } catch (error) {
           setStatusLine("clientSetupStatus", String(error), true);
+        }
+      });
+
+      document.getElementById("copyMcpUrlButton").addEventListener("click", async () => {
+        const value = document.getElementById("clientMcpUrlInput").value.trim() || defaultMcpUrl();
+        try {
+          await navigator.clipboard.writeText(value);
+          setStatusLine("clientSetupStatus", "MCP URL copied.");
+        } catch (error) {
+          setStatusLine("clientSetupStatus", `Copy failed: ${String(error)}`, true);
+        }
+      });
+
+      document.getElementById("selectedClientGuide").addEventListener("click", async (event) => {
+        const client = selectedClientObject();
+        if (!client) {
+          return;
+        }
+        const button = event.target.closest("#copyRecommendedPathButton");
+        if (!button) {
+          return;
+        }
+        const target = (client.targets || [])[0];
+        if (!target?.path) {
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(target.path);
+          setStatusLine("clientSetupStatus", "Recommended config path copied.");
+        } catch (error) {
+          setStatusLine("clientSetupStatus", `Copy failed: ${String(error)}`, true);
+        }
+      });
+
+      document.getElementById("previewMeta").addEventListener("click", async (event) => {
+        const preview = state.latestPreview;
+        if (!preview) {
+          return;
+        }
+        if (event.target.closest(".copy-preview-command-button") && preview.installCommand) {
+          try {
+            await navigator.clipboard.writeText(preview.installCommand);
+            setStatusLine("clientSetupStatus", "Install command copied.");
+          } catch (error) {
+            setStatusLine("clientSetupStatus", `Copy failed: ${String(error)}`, true);
+          }
+          return;
+        }
+        if (event.target.closest(".copy-preview-path-button")) {
+          try {
+            await navigator.clipboard.writeText(preview.configPath);
+            setStatusLine("clientSetupStatus", "Config path copied.");
+          } catch (error) {
+            setStatusLine("clientSetupStatus", `Copy failed: ${String(error)}`, true);
+          }
         }
       });
 
@@ -1653,6 +1908,7 @@
       renderTabs();
       renderPreview();
       renderVerification();
+      renderSelectedClientGuide();
 
       reloadAllData().catch((error) => {
         setStatusLine("dashboardStatus", `Initial load failed: ${String(error)}`, true);
