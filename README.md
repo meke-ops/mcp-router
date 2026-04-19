@@ -1,52 +1,93 @@
 # mcp-router
 
-Production-oriented MCP gateway/proxy focused on tool discovery, policy enforcement,
+Open source MCP gateway/proxy focused on tool discovery, policy enforcement,
 routing, and observability.
 
-## Current status
+`mcp-router` is building toward a production-grade control point for MCP tool
+traffic. The goal is to give teams one place to route `tools/list` and
+`tools/call` requests across multiple upstream MCP servers while applying
+tenant-aware policy, traffic shaping, audit logging, and operational
+visibility.
 
-The repository now includes the work through milestone 12:
+## Why This Project Exists
 
-- FastAPI application skeleton
-- `/v1/health` and `/v1/ready` endpoints
-- `POST /mcp` JSON-RPC entrypoint
-- in-memory session bootstrap for `initialize`
-- upstream passthrough for `initialize`, `tools/list`, and `tools/call`
-- HTTP upstream session propagation through `MCP-Session-Id`
-- tenant/principal binding via `X-Tenant-Id` and `X-Principal-Id`
-- session role binding via `X-Principal-Roles`
-- versioned in-memory tool registry with server bindings
-- JSON Schema validation before `tools/call` routing
-- default-deny policy enforcement before `tools/call`
-- tenant/principal/tool-scoped rate limiting and concurrency gates
-- in-memory policy, tool-call, and audit-event logging
-- `traceparent` propagation from `/mcp` to upstream transports
-- in-memory span recorder for request, policy, traffic, and upstream traces
-- retry-aware upstream fallback chains with in-memory circuit breakers
-- control-plane REST endpoints for tools, upstreams, policies, and audit queries
-- live event feed over WebSocket at `/v1/events/ws`
-- bundled dashboard at `/dashboard` for registry, policy, audit, and event visibility
-- JWT-backed bearer authentication with tenant-aware principal binding
-- token hashing and audit-safe PII redaction for auth and event records
-- CI-ready quality gates for lint, typecheck, unit, integration, packaging, and image build
-- active readiness probes for PostgreSQL and Redis when readiness gating is enabled
-- Prometheus-compatible metrics at `/metrics`
-- Kubernetes base + staging manifests, network policies, and staging runbook
-- integration tests covering one HTTP and one stdio upstream
+Most MCP demos stop at "the tool call worked." Real teams usually need more:
 
-## Project layout
+- a central policy layer before a tool executes
+- routing across multiple upstream MCP servers
+- auditability for who called what and why it was allowed or denied
+- traffic protection for shared tools
+- a path from local demo to staged deployment
+
+This repository is the open source build-out of that gateway.
+
+## Project Status
+
+This repo is already a working MVP+ and a solid open source foundation, but it
+is not yet at the final "production control plane" destination.
+
+What works today:
+
+- FastAPI application with MCP ingress at `POST /mcp`
+- `initialize`, `tools/list`, and `tools/call` request handling
+- HTTP and stdio upstream routing
+- tenant/principal/session binding
+- JSON Schema validation before `tools/call`
+- default-deny policy enforcement
+- rate limiting and concurrency gates
+- audit events and trace propagation
+- fallback chains and circuit-breaker behavior
+- control-plane REST endpoints and a bundled dashboard
+- JWT-backed auth flows and basic tenant-aware identity binding
+- metrics, health/readiness endpoints, Docker assets, and staging K8s manifests
+- automated lint, typecheck, unit, integration, packaging, and image checks
+
+Important current limitation:
+
+- most core runtime stores are still in-memory today
+
+That means the repo is great for development, demos, validation, and staging
+bootstrap work, while persistent storage and harder production guarantees are
+still part of the public roadmap.
+
+## Open Source Roadmap
+
+The roadmap is tracked in [`docs/roadmap.md`](docs/roadmap.md).
+
+High-level priorities:
+
+1. strengthen the repo as an OSS project
+2. replace in-memory runtime pieces with durable backing services
+3. harden auth, policy, and tenant isolation
+4. improve observability and operator workflows
+5. expand compatibility with real MCP client/server setups
+
+## Who This Is For
+
+- teams building MCP-based internal platforms
+- developers who want a policy-aware MCP gateway
+- engineers interested in multi-tenant tool routing and observability
+- contributors who want to help turn a strong prototype into a durable OSS project
+
+## Non-Goals
+
+- a full agent orchestration platform
+- workflow planning/memory/evals as the main product surface
+- hiding current limitations behind vague "production-ready" language
+
+## Project Layout
 
 ```text
 api/        HTTP routers and route dependencies
 cmd/        local runner entrypoints
 deploy/     Docker and compose assets
-docs/       architecture notes
-examples/   sample JSON-RPC payloads
+docs/       architecture, CI/CD, roadmap, and runbooks
+examples/   sample JSON-RPC payloads and demo upstreams
 internal/   application services and domain modules
-tests/      API tests
+tests/      unit and integration tests
 ```
 
-## Local development
+## Local Development
 
 ```bash
 python3 -m venv .venv
@@ -57,7 +98,7 @@ uvicorn internal.application:app --reload
 
 The API will be available at `http://127.0.0.1:8000`.
 
-## Quality checks
+## Quality Checks
 
 ```bash
 make lint
@@ -68,22 +109,20 @@ make package
 make k8s-render
 ```
 
-To run the full local CI chain in one shot:
+To run the local CI chain:
 
 ```bash
 make ci
 ```
 
-To validate the container assets locally:
+To validate container assets locally:
 
 ```bash
 make compose-config
 make image
 ```
 
-## Operations endpoints
-
-The router now exposes the following operational endpoints:
+## Operations Endpoints
 
 ```text
 GET /v1/health
@@ -94,9 +133,7 @@ GET /metrics
 `/v1/ready` performs active TCP dependency probes for PostgreSQL and Redis when
 `MCP_ROUTER_REQUIRE_DEPENDENCIES_FOR_READINESS=true`.
 
-## Control plane
-
-The control plane now exposes:
+## Control Plane
 
 ```text
 GET    /v1/tools
@@ -111,11 +148,17 @@ DELETE /v1/policies/{rule_id}
 GET    /v1/audit/policy-decisions
 GET    /v1/audit/tool-calls
 GET    /v1/audit/events
+GET    /v1/setup/clients
+POST   /v1/setup/client-preview
+POST   /v1/setup/client-apply
+GET    /v1/setup/discovery
+POST   /v1/setup/import
+POST   /v1/setup/verify
 WS     /v1/events/ws
 GET    /dashboard
 ```
 
-## Demo upstream configuration
+## Demo Upstream Configuration
 
 The router can load demo upstreams from `MCP_ROUTER_UPSTREAMS_JSON`.
 
@@ -128,7 +171,7 @@ export MCP_ROUTER_UPSTREAMS_JSON='[
 ]'
 ```
 
-You can start the sample HTTP upstream with:
+Start the sample HTTP upstream with:
 
 ```bash
 python3 examples/upstreams/http_server.py
@@ -147,7 +190,7 @@ Subsequent calls can reuse the same `MCP-Session-Id`. If the caller sends a
 different tenant, principal, or role set for that session, the router rejects
 the request.
 
-## Demo policy configuration
+## Demo Policy Configuration
 
 The router can load policy rules from `MCP_ROUTER_POLICIES_JSON`.
 
@@ -185,12 +228,10 @@ export MCP_ROUTER_POLICIES_JSON='[
 If no policy matches a `tools/call`, the router returns a deterministic default
 deny response and records the decision in the audit log.
 
-## Traffic control configuration
+## Traffic Control Configuration
 
 The router applies per `tenant + principal + tool` traffic shaping for
 `tools/call`.
-
-Environment variables:
 
 ```text
 MCP_ROUTER_TOOL_CALL_RATE_LIMIT_CAPACITY=60
@@ -202,7 +243,7 @@ Over-limit calls return `429` with a structured JSON-RPC error payload and an
 audit event describing whether the rejection came from the token bucket or the
 concurrency gate.
 
-## Trace propagation
+## Trace Propagation
 
 If the caller sends a `traceparent` header to `/mcp`, the router keeps the same
 `trace_id`, emits child spans for traffic checks, policy evaluation, and
@@ -215,12 +256,10 @@ X-Trace-Id: <trace-id>
 traceparent: <router-root-span>
 ```
 
-## Resilience configuration
+## Resilience Configuration
 
 Each upstream can optionally define fallback and breaker settings through
 `MCP_ROUTER_UPSTREAMS_JSON`.
-
-Example:
 
 ```json
 [
@@ -246,11 +285,21 @@ When the primary route hits repeated transport failures, the router opens that
 server's circuit, records the event, and continues with the configured fallback
 chain instead of failing hard.
 
-## Branch protection
+## Contributing
 
-GitHub Actions workflow definitions now live in
-`.github/workflows/ci.yml`. For the milestone 11 DoD, configure the `main`
-branch to require these checks before merge:
+Open source contribution guidance lives in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+If you want a place to start, focus on:
+
+- docs and examples that make the project easier to adopt
+- persistence work that replaces in-memory stores
+- auth, policy, audit, and observability hardening
+- setup and compatibility improvements for MCP clients
+
+## CI And Branch Protection
+
+GitHub Actions workflow definitions live in
+`.github/workflows/ci.yml`. The intended required checks for `main` are:
 
 - `lint`
 - `typecheck`
@@ -260,15 +309,21 @@ branch to require these checks before merge:
 - `k8s-manifests`
 - `image-build`
 
-## Kubernetes deployment
+## Kubernetes Deployment
 
-Staging-ready Kubernetes assets now live under
-`deploy/k8s/base` and `deploy/k8s/overlays/staging`.
+Staging-ready Kubernetes assets live under `deploy/k8s/base` and
+`deploy/k8s/overlays/staging`.
 
-- base manifests define the router deployment, service, service account, and
-  runtime configuration
+- base manifests define the router deployment, service account, service, and config
 - the staging overlay adds ingress, Postgres, Redis, PVC, and network policies
-- secret example manifests document the required secret keys without storing real values
+- secret example manifests document required secret keys without storing real values
 
 For the step-by-step staging workflow, use
 [`docs/runbooks/staging.md`](docs/runbooks/staging.md).
+
+## Additional Docs
+
+- [`docs/architecture.md`](docs/architecture.md)
+- [`docs/ci-cd.md`](docs/ci-cd.md)
+- [`docs/roadmap.md`](docs/roadmap.md)
+- [`CONTRIBUTING.md`](CONTRIBUTING.md)
