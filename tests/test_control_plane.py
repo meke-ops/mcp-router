@@ -16,6 +16,16 @@ def test_dashboard_page_renders_phase1_setup_shell(client):
     assert 'id="advancedOpsPanel"' in response.text
 
 
+def test_dashboard_page_renders_phase2_import_and_control_plane_shell(client):
+    response = client.get("/dashboard")
+
+    assert response.status_code == 200
+    assert "Import workspace servers in one pass" in response.text
+    assert "Control Plane Overview" in response.text
+    assert 'id="controlPlaneOverview"' in response.text
+    assert 'id="importOverview"' in response.text
+
+
 def test_control_plane_refreshes_and_lists_tools(integrated_client):
     initial_response = integrated_client.get("/v1/tools")
     assert initial_response.status_code == 200

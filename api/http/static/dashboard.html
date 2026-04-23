@@ -828,6 +828,46 @@
         background: rgba(255, 255, 255, 0.74);
       }
 
+      .overview-grid,
+      .upstream-stack,
+      .summary-grid {
+        display: grid;
+        gap: 14px;
+      }
+
+      .overview-grid,
+      .summary-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .metric-card,
+      .upstream-card {
+        border: 3px solid var(--line);
+        border-radius: 18px;
+        background: #fffdf8;
+        padding: 16px;
+      }
+
+      .metric-card strong,
+      .upstream-card strong {
+        display: block;
+        margin-top: 10px;
+        font-size: 22px;
+      }
+
+      .metric-card .caption,
+      .upstream-card .caption {
+        margin-top: 10px;
+      }
+
+      .upstream-stack {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .upstream-card .toolbar {
+        margin-top: 14px;
+      }
+
       .secondary-composer.is-collapsed .advanced-shell {
         display: none;
       }
@@ -890,7 +930,10 @@
         .candidate-grid,
         .form-grid,
         .signal-grid,
-        .step-grid {
+        .step-grid,
+        .overview-grid,
+        .summary-grid,
+        .upstream-stack {
           grid-template-columns: 1fr;
         }
 
@@ -1162,6 +1205,40 @@
                   <button class="button-primary" id="importCandidatesButton" type="button">Import Selected</button>
                 </div>
               </div>
+              <section class="panel" id="importOverview" style="margin-bottom: 16px;">
+                <div class="panel-header">
+                  <div>
+                    <div class="eyebrow">Import overview</div>
+                    <h2 style="margin-top: 12px; font-size: 28px;">Import workspace servers in one pass</h2>
+                    <div class="caption">
+                      Review what was detected, select the safe candidates, then
+                      bring them into the router without juggling config files.
+                    </div>
+                  </div>
+                </div>
+                <div class="overview-grid">
+                  <article class="metric-card">
+                    <div class="mini-label">Candidates</div>
+                    <strong id="importCandidateCount">0</strong>
+                    <div class="caption">Total discoveries across known client paths.</div>
+                  </article>
+                  <article class="metric-card">
+                    <div class="mini-label">Importable</div>
+                    <strong id="importReadyCount">0</strong>
+                    <div class="caption">Candidates that can be imported right now.</div>
+                  </article>
+                  <article class="metric-card">
+                    <div class="mini-label">Managed upstreams</div>
+                    <strong id="importManagedCount">0</strong>
+                    <div class="caption">Servers already tracked by this router.</div>
+                  </article>
+                  <article class="metric-card">
+                    <div class="mini-label">Next move</div>
+                    <strong id="importNextStep">Select servers</strong>
+                    <div class="caption">This updates as import readiness changes.</div>
+                  </article>
+                </div>
+              </section>
               <div class="candidate-grid" id="candidateGrid"></div>
               <div class="status-line" id="importStatus"></div>
             </section>
@@ -1169,14 +1246,16 @@
             <section class="panel">
               <div class="panel-header">
                 <div>
-                  <h2 style="font-size: 30px;">Router Upstreams</h2>
+                  <h2 style="font-size: 30px;">Imported And Active Upstreams</h2>
                   <div class="caption">
-                    Persisted route targets loaded by the router from env plus local state.
+                    Keep a quick visual inventory of what the router is already
+                    managing before you open lower-level tools.
                   </div>
                 </div>
                 <div class="chip" id="upstreamSummary">waiting</div>
               </div>
-              <div class="table-shell">
+              <div class="upstream-stack" id="upstreamCards"></div>
+              <div class="table-shell" style="display: none;">
                 <table>
                   <thead>
                     <tr>
@@ -1197,6 +1276,41 @@
         <div class="tab-pane" id="tab-operations">
           <div class="ops-grid">
             <div class="ops-stack">
+              <section class="panel" id="controlPlaneOverview">
+                <div class="panel-header">
+                  <div>
+                    <div class="eyebrow">Control plane overview</div>
+                    <h2 style="margin-top: 12px; font-size: 30px;">Control Plane Overview</h2>
+                    <div class="caption">
+                      Start here when you want the fastest read on tool health,
+                      policy posture, recent calls, and live traffic.
+                    </div>
+                  </div>
+                </div>
+                <div class="summary-grid">
+                  <article class="metric-card">
+                    <div class="mini-label">Tools</div>
+                    <strong id="opsToolCount">0</strong>
+                    <div class="caption">Discovered and manually registered tools.</div>
+                  </article>
+                  <article class="metric-card">
+                    <div class="mini-label">Policies</div>
+                    <strong id="opsPolicyCount">0</strong>
+                    <div class="caption">Allow and deny rules shaping execution.</div>
+                  </article>
+                  <article class="metric-card">
+                    <div class="mini-label">Recent calls</div>
+                    <strong id="opsCallCount">0</strong>
+                    <div class="caption">Tracked runtime outcomes in the latest slice.</div>
+                  </article>
+                  <article class="metric-card">
+                    <div class="mini-label">Live events</div>
+                    <strong id="opsEventCount">0</strong>
+                    <div class="caption">Current entries kept in the live event feed.</div>
+                  </article>
+                </div>
+              </section>
+
               <section class="panel">
                 <div class="panel-header">
                   <div>
@@ -1278,9 +1392,9 @@
               <section class="panel">
                 <div class="panel-header">
                   <div>
-                    <h2 style="font-size: 30px;">Event Feed</h2>
+                    <h2 style="font-size: 30px;">Live Event Feed</h2>
                     <div class="caption">
-                      Live control-plane and runtime events over WebSocket.
+                      Watch the router move in real time before making manual edits.
                     </div>
                   </div>
                   <div class="chip good" id="eventSummary">0 live entries</div>
@@ -1291,10 +1405,10 @@
               <section class="composer secondary-composer is-collapsed" id="advancedOpsPanel">
                 <div class="composer-header">
                   <div>
-                    <h3 style="font-size: 28px;">Advanced Operations</h3>
+                    <h3 style="font-size: 28px;">Manual Change Desk</h3>
                     <div class="caption">
-                      Manual registry and policy edits stay available here for
-                      low-level control.
+                      Use this only when the overview and tables are not enough
+                      and you need low-level control-plane edits.
                     </div>
                   </div>
                   <button class="button-ghost" id="toggleAdvancedOpsButton" type="button">Show Forms</button>
@@ -1763,11 +1877,37 @@
           : `<article class="empty-state">No known MCP client configs were found in the current discovery paths.</article>`;
       }
 
+      function renderImportOverview() {
+        const importableCount = state.discoveryCandidates.filter((candidate) => candidate.importable).length;
+        const managedCount = state.upstreams.filter((item) => item.managedBy && item.managedBy !== "manual").length;
+        document.getElementById("importCandidateCount").textContent = String(state.discoveryCandidates.length);
+        document.getElementById("importReadyCount").textContent = String(importableCount);
+        document.getElementById("importManagedCount").textContent = String(managedCount);
+        document.getElementById("importNextStep").textContent = importableCount ? "Import selected" : "Refresh discovery";
+      }
+
       function renderUpstreams() {
         document.getElementById("upstreamSummary").textContent = state.upstreams.length
           ? `${state.upstreams.length} upstreams`
           : "empty";
+        const cards = document.getElementById("upstreamCards");
         const table = document.getElementById("upstreamsTable");
+        cards.innerHTML = state.upstreams.length
+          ? state.upstreams.map((item) => `
+              <article class="upstream-card">
+                <div class="inline-list">
+                  <span class="chip">${escapeHtml(item.transport)}</span>
+                  <span class="chip ${item.managedBy && item.managedBy !== "manual" ? "good" : ""}">${escapeHtml(item.managedBy || "manual")}</span>
+                </div>
+                <strong>${escapeHtml(item.serverId)}</strong>
+                <div class="caption"><code>${escapeHtml(item.url || [item.command || "", ...(item.args || [])].join(" ").trim() || "-")}</code></div>
+                <div class="caption">Origin: ${escapeHtml(item.originClient || "manual registration")}</div>
+                <div class="toolbar">
+                  <button class="button-ghost delete-upstream-button" data-server-id="${escapeHtml(item.serverId)}" type="button">Delete</button>
+                </div>
+              </article>
+            `).join("")
+          : `<article class="empty-state">No upstreams registered yet. Import a server or add one from the Manual Change Desk.</article>`;
         table.innerHTML = state.upstreams.length
           ? state.upstreams.map((item) => `
               <tr>
@@ -1782,6 +1922,13 @@
               </tr>
             `).join("")
           : `<tr><td colspan="5">No upstreams registered yet.</td></tr>`;
+      }
+
+      function renderControlPlaneOverview() {
+        document.getElementById("opsToolCount").textContent = String(state.tools.length);
+        document.getElementById("opsPolicyCount").textContent = String(state.policies.length);
+        document.getElementById("opsCallCount").textContent = String(state.toolCalls.length);
+        document.getElementById("opsEventCount").textContent = String(state.events.length);
       }
 
       function renderTools() {
@@ -1873,6 +2020,7 @@
         renderTargets();
         renderSelectedClientGuide();
         renderCandidates();
+        renderImportOverview();
         renderUpstreams();
         renderHeroStats();
         renderSetupProgress();
@@ -1893,6 +2041,7 @@
         renderPolicies();
         renderToolCalls();
         renderEvents();
+        renderControlPlaneOverview();
         renderHeroStats();
       }
 
@@ -2173,6 +2322,23 @@
             "importStatus",
             `Imported ${response.item.importedCount}, updated ${response.item.updatedCount}, tools visible ${response.item.toolCount}.`
           );
+        } catch (error) {
+          setStatusLine("importStatus", String(error), true);
+        }
+      });
+
+      document.getElementById("upstreamCards").addEventListener("click", async (event) => {
+        const button = event.target.closest(".delete-upstream-button");
+        if (!button) {
+          return;
+        }
+        try {
+          await fetchJson(`/v1/upstreams/${encodeURIComponent(button.dataset.serverId)}`, {
+            method: "DELETE",
+          });
+          await loadSetupData();
+          await loadOperationsData();
+          setStatusLine("importStatus", `Deleted upstream ${button.dataset.serverId}.`);
         } catch (error) {
           setStatusLine("importStatus", String(error), true);
         }
