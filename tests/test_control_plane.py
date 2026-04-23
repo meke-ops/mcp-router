@@ -2,8 +2,18 @@ def test_dashboard_page_renders(client):
     response = client.get("/dashboard")
 
     assert response.status_code == 200
-    assert "Connect once. Route everywhere." in response.text
+    assert "Set up your MCP Router" in response.text
     assert "/v1/events/ws" in response.text
+
+
+def test_dashboard_page_renders_phase1_setup_shell(client):
+    response = client.get("/dashboard")
+
+    assert response.status_code == 200
+    assert "Guided setup" in response.text
+    assert "Control Plane" in response.text
+    assert 'id="utilityBar"' in response.text
+    assert 'id="advancedOpsPanel"' in response.text
 
 
 def test_control_plane_refreshes_and_lists_tools(integrated_client):

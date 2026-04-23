@@ -592,7 +592,280 @@
         gap: 16px;
       }
 
+      :root {
+        --bg: #f7efb6;
+        --ink: #121212;
+        --muted: rgba(18, 18, 18, 0.7);
+        --line: #121212;
+        --panel: #fff9ef;
+        --panel-strong: #fffdf8;
+        --panel-deep: #121212;
+        --accent: #ff7a00;
+        --accent-2: #1976f3;
+        --accent-3: #ff4f87;
+        --danger: #d73a31;
+        --good: #1b8f48;
+        --shadow: 8px 8px 0 rgba(18, 18, 18, 0.98);
+        --display: "Cooper Black", "Georgia", "Times New Roman", serif;
+        --sans: "Trebuchet MS", "Avenir Next", sans-serif;
+      }
+
+      body {
+        background:
+          radial-gradient(circle at 10% 12%, rgba(255, 122, 0, 0.22), transparent 24%),
+          radial-gradient(circle at 90% 14%, rgba(25, 118, 243, 0.2), transparent 22%),
+          linear-gradient(180deg, #fff7bf 0%, #f7efb6 48%, #f2d4a7 100%);
+      }
+
+      body::before {
+        background-image:
+          linear-gradient(rgba(18, 18, 18, 0.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(18, 18, 18, 0.05) 1px, transparent 1px);
+      }
+
+      main.app-shell {
+        max-width: 1440px;
+        padding-top: 24px;
+      }
+
+      .utility-bar,
+      .action-header,
+      .access-strip,
+      .hero,
+      .status-panel,
+      .panel,
+      .workspace,
+      .composer {
+        border: 3px solid var(--line);
+        box-shadow: var(--shadow);
+        backdrop-filter: none;
+      }
+
+      .utility-bar,
+      .action-header,
+      .access-strip,
+      .hero,
+      .status-panel,
+      .panel,
+      .workspace,
+      .composer,
+      .signal,
+      .client-card,
+      .target-card,
+      .candidate-card,
+      .verification-card,
+      .empty-state,
+      .guide-card,
+      .step-card,
+      .quick-card,
+      .event-item {
+        border-radius: 18px;
+      }
+
+      .utility-bar,
+      .action-header,
+      .access-strip {
+        background: var(--panel);
+        padding: 18px 20px;
+        margin-bottom: 18px;
+      }
+
+      .utility-bar {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .utility-primary,
+      .utility-status {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .utility-pill {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 56px;
+        padding: 10px 14px;
+        border: 3px solid var(--line);
+        border-radius: 16px;
+        background: #fffdf8;
+      }
+
+      .utility-pill input {
+        min-width: 220px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        font-weight: 700;
+        box-shadow: none;
+      }
+
+      .action-header {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 18px;
+        align-items: end;
+      }
+
+      .action-header h1 {
+        max-width: 10ch;
+        margin-top: 14px;
+      }
+
+      .action-side {
+        display: grid;
+        gap: 16px;
+      }
+
+      .overview-strip {
+        gap: 10px;
+      }
+
+      .overview-strip .signal {
+        background: #fffdf8;
+      }
+
+      .access-strip {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr auto;
+        gap: 14px;
+        align-items: end;
+      }
+
+      .access-strip .toolbar {
+        justify-content: flex-end;
+      }
+
+      .workspace {
+        padding: 20px;
+        background: rgba(255, 249, 239, 0.92);
+      }
+
+      .tab-row {
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .tab-button {
+        border: 3px solid var(--line);
+        border-radius: 16px;
+        background: #fffdf8;
+        color: var(--ink);
+        box-shadow: 5px 5px 0 rgba(18, 18, 18, 0.96);
+      }
+
+      .tab-button.active {
+        transform: translate(-2px, -2px);
+        background: var(--accent);
+        color: #121212;
+        box-shadow: 7px 7px 0 rgba(18, 18, 18, 0.98);
+      }
+
+      .guided-shell {
+        display: grid;
+        gap: 22px;
+        margin-bottom: 22px;
+      }
+
+      .guided-steps {
+        gap: 12px;
+      }
+
+      .step-card {
+        border: 3px solid var(--line);
+        background: #fffdf8;
+      }
+
+      .step-card.active {
+        background: #ffd36f;
+      }
+
+      .step-card.complete {
+        background: #b8f2c0;
+      }
+
+      .step-card .step-topline {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .step-card .step-state {
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+
+      .setup-grid {
+        grid-template-columns: minmax(0, 1.05fr) minmax(340px, 0.95fr);
+      }
+
+      .context-stack {
+        display: grid;
+        gap: 22px;
+      }
+
+      .panel-title-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+
+      .context-note {
+        padding: 14px;
+        border: 3px dashed var(--line);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.74);
+      }
+
+      .secondary-composer.is-collapsed .advanced-shell {
+        display: none;
+      }
+
+      .secondary-composer.is-collapsed .caption-toggle-copy::after {
+        content: "Hidden until needed";
+      }
+
+      .button-primary {
+        background: var(--accent);
+        color: var(--ink);
+        border: 3px solid var(--line);
+        box-shadow: 5px 5px 0 rgba(18, 18, 18, 0.98);
+      }
+
+      .button-secondary,
+      .button-ghost {
+        border: 3px solid var(--line);
+        box-shadow: 4px 4px 0 rgba(18, 18, 18, 0.9);
+      }
+
+      button:hover,
+      .tab-button:hover {
+        transform: translate(-2px, -2px);
+      }
+
+      button:focus-visible,
+      .tab-button:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      textarea:focus-visible {
+        outline: 3px solid var(--accent-2);
+        outline-offset: 2px;
+      }
+
       @media (max-width: 1120px) {
+        .action-header,
+        .access-strip,
         .hero-grid,
         .setup-grid,
         .ops-grid {
@@ -603,6 +876,14 @@
       @media (max-width: 820px) {
         main {
           padding: 18px 14px 40px;
+        }
+
+        .utility-pill {
+          width: 100%;
+        }
+
+        .utility-pill input {
+          min-width: 0;
         }
 
         .client-grid,
@@ -620,32 +901,41 @@
     </style>
   </head>
   <body>
-    <main>
-      <section class="hero-grid">
-        <article class="hero">
-          <div class="eyebrow">MCP Router / Setup Center</div>
-          <h1>Connect once. Route everywhere.</h1>
+    <main class="app-shell">
+      <section class="utility-bar" id="utilityBar">
+        <div class="utility-primary">
+          <div class="utility-pill">
+            <div class="mini-label">Router URL</div>
+            <input id="routerUrlMirror" readonly />
+          </div>
+          <div class="utility-status">
+            <div class="chip" id="authModeChip">Control-plane auth unknown</div>
+            <div class="chip" id="socketStatus">WebSocket connecting</div>
+            <div class="chip" id="dashboardTokenStatus">Token optional</div>
+          </div>
+        </div>
+        <div class="toolbar">
+          <button class="button-secondary" id="refreshRegistryButton" type="button">Refresh Registry</button>
+          <button class="button-ghost" id="reloadAllButton" type="button">Reload Dashboard</button>
+        </div>
+      </section>
+
+      <section class="action-header">
+        <div class="action-copy">
+          <div class="eyebrow">MCP Router Dashboard</div>
+          <h1>Set up your MCP Router</h1>
           <p class="hero-copy">
-            This surface is built for the real onboarding job: wire `mcp-router`
-            into Claude Code, Cursor, Codex, or OpenCode, then import the MCP
-            servers you already use on this machine into one router-managed hub.
+            Connect one client, verify the route, then import the MCP servers
+            you already use on this machine into one control point.
           </p>
           <div class="hero-actions">
-            <button class="button-primary" id="refreshRegistryButton">Refresh Registry</button>
-            <button class="button-secondary" id="reloadAllButton">Reload Dashboard</button>
+            <button class="button-primary" id="startSetupButton" type="button">Start Setup</button>
+            <button class="button-secondary" id="jumpToOperationsButton" type="button">View Control Plane</button>
           </div>
-        </article>
+        </div>
 
-        <aside class="status-panel">
-          <div>
-            <div class="eyebrow">Live Posture</div>
-            <h2 style="margin-top: 12px; font-size: 34px;">Setup Board</h2>
-            <p class="caption">
-              Quick read on clients, imported servers, tool visibility, and runtime flow.
-            </p>
-          </div>
-
-          <div class="signal-grid">
+        <aside class="action-side">
+          <div class="signal-grid overview-strip">
             <div class="signal">
               <div class="mini-label">Clients</div>
               <div class="signal-value" id="clientCount">0</div>
@@ -663,49 +953,78 @@
               <div class="signal-value" id="toolCount">0</div>
             </div>
           </div>
-
-          <div class="inline-list">
-            <div class="chip" id="socketStatus">WebSocket connecting</div>
-            <div class="chip" id="authModeChip">Control-plane auth unknown</div>
-          </div>
         </aside>
       </section>
 
-      <section class="workspace auth-shell">
-        <div class="panel-header">
-          <div>
-            <h2 style="font-size: 30px;">Session Gate</h2>
-            <div class="caption">
-              Save the dashboard JWT for protected control-plane and event access.
-            </div>
-          </div>
+      <section class="access-strip">
+        <label>
+          Dashboard Bearer Token
+          <input id="dashboardTokenInput" type="password" autocomplete="off" placeholder="Paste JWT if /v1 is protected" />
+        </label>
+        <div class="context-note">
+          <div class="mini-label">Access bar</div>
+          <p class="caption" style="margin-top: 8px;">
+            Save a token only if the control plane is protected. Otherwise you
+            can stay in setup mode and keep moving.
+          </p>
         </div>
-        <div class="form-grid">
-          <label>
-            Dashboard Bearer Token
-            <input id="dashboardTokenInput" type="password" autocomplete="off" placeholder="Paste JWT if /v1 is protected" />
-          </label>
-          <label>
-            Router Default URL
-            <input id="routerUrlMirror" readonly />
-          </label>
-        </div>
-        <div class="toolbar" style="margin-top: 14px;">
+        <div class="toolbar">
           <button class="button-secondary" id="saveDashboardTokenButton" type="button">Save Token</button>
           <button class="button-ghost" id="clearDashboardTokenButton" type="button">Clear Token</button>
-          <div class="chip" id="dashboardTokenStatus">Token optional</div>
         </div>
         <div class="status-line" id="dashboardStatus"></div>
       </section>
 
       <section class="workspace">
         <div class="tab-row">
-          <button class="tab-button active" data-tab="connect">Connect Clients</button>
-          <button class="tab-button" data-tab="import">Import Existing Servers</button>
-          <button class="tab-button" data-tab="operations">Operations</button>
+          <button class="tab-button active" data-tab="connect">Home / Setup</button>
+          <button class="tab-button" data-tab="import">Import Servers</button>
+          <button class="tab-button" data-tab="operations">Control Plane</button>
         </div>
 
         <div class="tab-pane active" id="tab-connect">
+          <section class="guided-shell">
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Guided setup</div>
+                  <h2 style="margin-top: 12px; font-size: 30px;">Connect a client in three moves</h2>
+                  <div class="caption">
+                    Choose a client, confirm the target path and auth, then apply
+                    and verify without digging through config docs.
+                  </div>
+                </div>
+                <div class="chip" id="guideProgressChip">Choose client</div>
+              </div>
+              <div class="step-grid guided-steps">
+                <article class="step-card active" data-setup-step="client">
+                  <div class="step-topline">
+                    <div class="step-index">01</div>
+                    <div class="step-state" id="stepClientStatus">Active</div>
+                  </div>
+                  <h3 style="margin-top: 14px;">Choose client</h3>
+                  <p class="caption" style="margin-top: 10px;">Pick the MCP app you want to connect first.</p>
+                </article>
+                <article class="step-card" data-setup-step="preview">
+                  <div class="step-topline">
+                    <div class="step-index">02</div>
+                    <div class="step-state" id="stepPreviewStatus">Pending</div>
+                  </div>
+                  <h3 style="margin-top: 14px;">Review path and auth</h3>
+                  <p class="caption" style="margin-top: 10px;">Preview the exact config patch before writing anything.</p>
+                </article>
+                <article class="step-card" data-setup-step="verify">
+                  <div class="step-topline">
+                    <div class="step-index">03</div>
+                    <div class="step-state" id="stepVerifyStatus">Pending</div>
+                  </div>
+                  <h3 style="margin-top: 14px;">Apply and verify</h3>
+                  <p class="caption" style="margin-top: 10px;">Finish setup, then confirm the router session is live.</p>
+                </article>
+              </div>
+            </section>
+          </section>
+
           <div class="setup-grid">
             <div class="ops-stack">
               <section class="panel">
@@ -721,20 +1040,9 @@
                 <div class="client-grid" id="clientCards"></div>
               </section>
 
-              <section class="panel">
-                <div class="panel-header">
-                  <div>
-                    <h2 style="font-size: 30px;">Install Locations</h2>
-                    <div class="caption">
-                      These are the detected user or project config targets for the selected client.
-                    </div>
-                  </div>
-                </div>
-                <div class="target-grid" id="installTargets"></div>
-              </section>
             </div>
 
-            <div class="ops-stack">
+            <div class="context-stack">
               <section class="panel">
                 <div class="panel-header">
                   <div>
@@ -753,7 +1061,8 @@
                   <div>
                     <h3 style="font-size: 28px;">Connection Wizard</h3>
                     <div class="caption">
-                      Step through the setup with visible defaults instead of guessing where each client stores MCP config.
+                      Follow the current step and keep the defaults unless you
+                      know you need a different target.
                     </div>
                   </div>
                 </div>
@@ -802,13 +1111,16 @@
               <section class="panel">
                 <div class="panel-header">
                   <div>
-                    <h2 style="font-size: 30px;">Config Preview</h2>
+                    <h2 style="font-size: 30px;">Setup Snapshot</h2>
                     <div class="caption">
-                      Generated install command, target path, auth mode, and merged config snapshot.
+                      Keep the install target, preview, and verification in one
+                      side panel while you work through setup.
                     </div>
                   </div>
                   <div class="chip" id="previewSummary">waiting</div>
                 </div>
+                <div id="installTargets"></div>
+                <div class="section-rule"></div>
                 <div class="target-card" id="previewMeta">
                   <div class="caption">Preview a client setup to see config details.</div>
                 </div>
@@ -839,9 +1151,10 @@
             <section class="panel">
               <div class="panel-header">
                 <div>
-                  <h2 style="font-size: 30px;">Detected Candidates</h2>
+                  <h2 style="font-size: 30px;">Import servers already on this machine</h2>
                   <div class="caption">
-                    Known config paths are scanned for importable stdio and streamable HTTP servers.
+                    Scan known config paths, choose the servers you want, then
+                    pull them into the router as managed upstreams.
                   </div>
                 </div>
                 <div class="toolbar">
@@ -975,14 +1288,16 @@
                 <div class="event-feed" id="eventFeed"></div>
               </section>
 
-              <section class="composer">
+              <section class="composer secondary-composer is-collapsed" id="advancedOpsPanel">
                 <div class="composer-header">
                   <div>
                     <h3 style="font-size: 28px;">Advanced Operations</h3>
                     <div class="caption">
-                      Manual registry and policy edits stay available here for low-level control.
+                      Manual registry and policy edits stay available here for
+                      low-level control.
                     </div>
                   </div>
+                  <button class="button-ghost" id="toggleAdvancedOpsButton" type="button">Show Forms</button>
                 </div>
 
                 <div class="advanced-shell">
@@ -1189,6 +1504,42 @@
         document.getElementById("candidateCount").textContent = String(state.discoveryCandidates.length);
         document.getElementById("upstreamCount").textContent = String(state.upstreams.length);
         document.getElementById("toolCount").textContent = String(state.tools.length);
+      }
+
+      function switchTab(tabName) {
+        state.activeTab = tabName;
+        renderTabs();
+      }
+
+      function renderSetupProgress() {
+        const clientStep = document.querySelector('[data-setup-step="client"]');
+        const previewStep = document.querySelector('[data-setup-step="preview"]');
+        const verifyStep = document.querySelector('[data-setup-step="verify"]');
+        const clientSelected = Boolean(selectedClientObject());
+        const previewReady = Boolean(state.latestPreview);
+        const verified = Boolean(state.latestVerification);
+
+        document.getElementById("stepClientStatus").textContent = clientSelected ? "Ready" : "Active";
+        document.getElementById("stepPreviewStatus").textContent = previewReady ? "Ready" : "Pending";
+        document.getElementById("stepVerifyStatus").textContent = verified ? "Done" : "Pending";
+
+        clientStep.classList.toggle("active", clientSelected && !previewReady);
+        clientStep.classList.toggle("complete", previewReady);
+        previewStep.classList.toggle("active", clientSelected && !previewReady);
+        previewStep.classList.toggle("complete", verified);
+        verifyStep.classList.toggle("active", previewReady && !verified);
+        verifyStep.classList.toggle("complete", verified);
+
+        const progressChip = document.getElementById("guideProgressChip");
+        if (verified) {
+          progressChip.textContent = "Verification complete";
+          return;
+        }
+        if (previewReady) {
+          progressChip.textContent = "Run apply and verify";
+          return;
+        }
+        progressChip.textContent = clientSelected ? "Preview the config" : "Choose client";
       }
 
       function renderTabs() {
@@ -1524,6 +1875,7 @@
         renderCandidates();
         renderUpstreams();
         renderHeroStats();
+        renderSetupProgress();
       }
 
       async function loadOperationsData() {
@@ -1566,6 +1918,7 @@
         });
         state.latestPreview = response.item;
         renderPreview();
+        renderSetupProgress();
       }
 
       async function applyClientConfig() {
@@ -1579,6 +1932,7 @@
         state.latestVerification = response.verification;
         renderPreview();
         renderVerification();
+        renderSetupProgress();
       }
 
       function collectClientPayload() {
@@ -1635,9 +1989,17 @@
 
       document.querySelectorAll(".tab-button").forEach((button) => {
         button.addEventListener("click", () => {
-          state.activeTab = button.dataset.tab;
-          renderTabs();
+          switchTab(button.dataset.tab);
         });
+      });
+
+      document.getElementById("startSetupButton").addEventListener("click", () => {
+        switchTab("connect");
+        document.getElementById("clientSelect").focus();
+      });
+
+      document.getElementById("jumpToOperationsButton").addEventListener("click", () => {
+        switchTab("operations");
       });
 
       document.getElementById("saveDashboardTokenButton").addEventListener("click", async () => {
@@ -1690,6 +2052,7 @@
         renderClients();
         renderTargets();
         renderSelectedClientGuide();
+        renderSetupProgress();
       });
 
       document.getElementById("clientSelect").addEventListener("change", (event) => {
@@ -1697,6 +2060,7 @@
         renderClients();
         renderTargets();
         renderSelectedClientGuide();
+        renderSetupProgress();
       });
 
       document.getElementById("scopeSelect").addEventListener("change", () => {
@@ -1775,6 +2139,12 @@
             setStatusLine("clientSetupStatus", `Copy failed: ${String(error)}`, true);
           }
         }
+      });
+
+      document.getElementById("toggleAdvancedOpsButton").addEventListener("click", () => {
+        const panel = document.getElementById("advancedOpsPanel");
+        const isCollapsed = panel.classList.toggle("is-collapsed");
+        document.getElementById("toggleAdvancedOpsButton").textContent = isCollapsed ? "Show Forms" : "Hide Forms";
       });
 
       document.getElementById("refreshDiscoveryButton").addEventListener("click", async () => {
@@ -1909,6 +2279,7 @@
       renderPreview();
       renderVerification();
       renderSelectedClientGuide();
+      renderSetupProgress();
 
       reloadAllData().catch((error) => {
         setStatusLine("dashboardStatus", `Initial load failed: ${String(error)}`, true);
