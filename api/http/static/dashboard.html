@@ -501,8 +501,41 @@
         color: var(--muted);
       }
 
+      .status-line.status-info,
+      .status-line.status-ready {
+        color: var(--ink);
+      }
+
       .status-line.error {
         color: var(--danger);
+      }
+
+      .state-card {
+        border: 3px solid var(--line);
+        border-radius: 18px;
+        padding: 16px;
+        background: var(--surface-idle);
+      }
+
+      .state-card h3 {
+        font-size: 20px;
+      }
+
+      .state-card .caption {
+        margin-top: 10px;
+      }
+
+      .state-idle,
+      .state-loading {
+        background: var(--surface-info);
+      }
+
+      .state-success {
+        background: var(--surface-ready);
+      }
+
+      .state-error {
+        background: var(--surface-error);
       }
 
       .table-shell {
@@ -608,6 +641,36 @@
         --shadow: 8px 8px 0 rgba(18, 18, 18, 0.98);
         --display: "Cooper Black", "Georgia", "Times New Roman", serif;
         --sans: "Trebuchet MS", "Avenir Next", sans-serif;
+        --surface-info: #fff2c8;
+        --surface-ready: #d6f7dd;
+        --surface-error: #ffd5cf;
+        --surface-idle: #fffdf8;
+        --motion-fast: 160ms;
+        --motion-base: 280ms;
+      }
+
+      @keyframes dashboard-float-in {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes dashboard-pop {
+        from {
+          opacity: 0.92;
+          transform: translateY(2px) scale(0.99);
+        }
+
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
       }
 
       body {
@@ -668,6 +731,7 @@
         background: var(--panel);
         padding: 18px 20px;
         margin-bottom: 18px;
+        animation: dashboard-float-in var(--motion-base) ease forwards;
       }
 
       .utility-bar {
@@ -740,6 +804,36 @@
 
       .access-strip .toolbar {
         justify-content: flex-end;
+      }
+
+      .global-status-banner {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        align-items: center;
+        padding: 14px 18px;
+        margin-bottom: 18px;
+        border: 3px solid var(--line);
+        border-radius: 18px;
+        box-shadow: 6px 6px 0 rgba(18, 18, 18, 0.96);
+        animation: dashboard-float-in var(--motion-base) ease forwards;
+      }
+
+      .global-status-banner p {
+        font-weight: 700;
+      }
+
+      .status-tone-loading,
+      .status-tone-info {
+        background: var(--surface-info);
+      }
+
+      .status-tone-ready {
+        background: var(--surface-ready);
+      }
+
+      .status-tone-error {
+        background: var(--surface-error);
       }
 
       .workspace {
@@ -868,6 +962,18 @@
         margin-top: 14px;
       }
 
+      .workspace,
+      .panel,
+      .composer,
+      .metric-card,
+      .upstream-card,
+      .candidate-card,
+      .guide-card,
+      .step-card,
+      .event-item {
+        animation: dashboard-pop var(--motion-base) ease forwards;
+      }
+
       .secondary-composer.is-collapsed .advanced-shell {
         display: none;
       }
@@ -941,6 +1047,16 @@
           min-width: 520px;
         }
       }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
     </style>
   </head>
   <body>
@@ -961,6 +1077,11 @@
           <button class="button-secondary" id="refreshRegistryButton" type="button">Refresh Registry</button>
           <button class="button-ghost" id="reloadAllButton" type="button">Reload Dashboard</button>
         </div>
+      </section>
+
+      <section class="global-status-banner status-tone-info" id="globalStatusBanner">
+        <div class="mini-label">Dashboard status</div>
+        <p id="globalStatusMessage">Loading dashboard surfaces...</p>
       </section>
 
       <section class="action-header">
@@ -1576,7 +1697,8 @@
       function setStatusLine(id, message, isError = false) {
         const node = document.getElementById(id);
         node.textContent = message;
-        node.className = isError ? "status-line error" : "status-line";
+        node.className = isError ? "status-line error" : "status-line status-info";
+        setGlobalStatus(isError ? "error" : "info", message);
       }
 
       function defaultMcpUrl() {
@@ -1590,6 +1712,33 @@
           .replaceAll(">", "&gt;")
           .replaceAll('"', "&quot;")
           .replaceAll("'", "&#39;");
+      }
+
+      function renderStateMessage(tone, title, body) {
+        return `
+          <article class="state-card state-${tone}">
+            <div class="mini-label">${escapeHtml(tone)}</div>
+            <h3 style="margin-top: 10px;">${escapeHtml(title)}</h3>
+            <p class="caption">${escapeHtml(body)}</p>
+          </article>
+        `;
+      }
+
+      function renderTableStateRow(colspan, tone, title, body) {
+        return `
+          <tr>
+            <td colspan="${colspan}">
+              ${renderStateMessage(tone, title, body)}
+            </td>
+          </tr>
+        `;
+      }
+
+      function setGlobalStatus(tone, message) {
+        const banner = document.getElementById("globalStatusBanner");
+        const label = document.getElementById("globalStatusMessage");
+        banner.className = `global-status-banner status-tone-${tone}`;
+        label.textContent = message;
       }
 
       function persistDashboardToken(token) {
@@ -1718,7 +1867,7 @@
                 </div>
               </button>
             `).join("")
-          : `<article class="empty-state">No supported client metadata loaded yet.</article>`;
+          : renderStateMessage("idle", "Client list waiting", "No supported client metadata loaded yet.");
 
         state.clients.forEach((client) => {
           const option = document.createElement("option");
@@ -1733,7 +1882,7 @@
         const client = selectedClientObject();
         const node = document.getElementById("installTargets");
         if (!client) {
-          node.innerHTML = `<article class="empty-state">Choose a client to see install targets.</article>`;
+          node.innerHTML = renderStateMessage("idle", "Install targets waiting", "Choose a client to see install targets.");
           return;
         }
         node.innerHTML = (client.targets || []).map((target) => `
@@ -1753,7 +1902,7 @@
         const summary = document.getElementById("guideSummary");
         if (!client) {
           summary.textContent = "waiting";
-          node.innerHTML = `<article class="empty-state">Choose a client to see its setup guide.</article>`;
+          node.innerHTML = renderStateMessage("idle", "Guide waiting", "Choose a client to see its setup guide.");
           return;
         }
         const playbook = clientPlaybooks[client.clientId] || {
@@ -1807,7 +1956,7 @@
         const summary = document.getElementById("previewSummary");
         if (!state.latestPreview) {
           summary.textContent = "waiting";
-          meta.innerHTML = `<div class="caption">Preview a client setup to see config details.</div>`;
+          meta.innerHTML = renderStateMessage("idle", "Preview waiting", "Generate a preview to inspect config details.");
           content.textContent = "No preview generated yet.";
           return;
         }
@@ -1832,7 +1981,7 @@
       function renderVerification() {
         const node = document.getElementById("verificationCard");
         if (!state.latestVerification) {
-          node.innerHTML = `<div class="caption">Apply a client config to run verification.</div>`;
+          node.innerHTML = renderStateMessage("idle", "Verification waiting", "Apply a client config to run verification.");
           return;
         }
         const item = state.latestVerification;
@@ -1874,7 +2023,7 @@
                 </label>
               </article>
             `).join("")
-          : `<article class="empty-state">No known MCP client configs were found in the current discovery paths.</article>`;
+          : renderStateMessage("idle", "No import candidates", "No known MCP client configs were found in the current discovery paths.");
       }
 
       function renderImportOverview() {
@@ -1907,7 +2056,7 @@
                 </div>
               </article>
             `).join("")
-          : `<article class="empty-state">No upstreams registered yet. Import a server or add one from the Manual Change Desk.</article>`;
+          : renderStateMessage("idle", "No upstreams yet", "Import a server or add one from the Manual Change Desk.");
         table.innerHTML = state.upstreams.length
           ? state.upstreams.map((item) => `
               <tr>
@@ -1921,7 +2070,7 @@
                 <td><button class="button-ghost delete-upstream-button" data-server-id="${escapeHtml(item.serverId)}" type="button">Delete</button></td>
               </tr>
             `).join("")
-          : `<tr><td colspan="5">No upstreams registered yet.</td></tr>`;
+          : renderTableStateRow(5, "idle", "No upstreams yet", "Import a server or add one from the Manual Change Desk.");
       }
 
       function renderControlPlaneOverview() {
@@ -1944,7 +2093,7 @@
                 <td>${escapeHtml(tool.definition.description || "-")}</td>
               </tr>
             `).join("")
-          : `<tr><td colspan="4">No tools registered yet.</td></tr>`;
+          : renderTableStateRow(4, "idle", "No tools registered yet", "Refresh the registry or add one from the Manual Change Desk.");
       }
 
       function renderPolicies() {
@@ -1963,7 +2112,7 @@
                 <td>${escapeHtml((policy.toolNames || []).join(", ") || "all tools")}</td>
               </tr>
             `).join("")
-          : `<tr><td colspan="4">No policies configured.</td></tr>`;
+          : renderTableStateRow(4, "idle", "No policies configured", "Create a rule only when you need to shape execution.");
       }
 
       function renderToolCalls() {
@@ -1980,7 +2129,7 @@
                 <td>${escapeHtml(item.status_code)}</td>
               </tr>
             `).join("")
-          : `<tr><td colspan="5">No tool calls captured yet.</td></tr>`;
+          : renderTableStateRow(5, "idle", "No tool calls yet", "Run a tool through the router to populate recent call history.");
       }
 
       function renderEvents() {
@@ -1995,10 +2144,14 @@
                 <pre style="margin-top: 10px;">${escapeHtml(JSON.stringify(event.detail, null, 2))}</pre>
               </article>
             `).join("")
-          : `<article class="event-item">Waiting for live events.</article>`;
+          : renderStateMessage("loading", "Event feed waiting", "Live events will appear here when the router emits traffic.");
       }
 
       async function loadSetupData() {
+        document.getElementById("clientCards").innerHTML = renderStateMessage("loading", "Loading clients", "Fetching supported MCP client targets.");
+        document.getElementById("installTargets").innerHTML = renderStateMessage("loading", "Loading targets", "Checking detected config paths for the selected client.");
+        document.getElementById("candidateGrid").innerHTML = renderStateMessage("loading", "Scanning client configs", "Looking for importable servers on this machine.");
+        document.getElementById("upstreamCards").innerHTML = renderStateMessage("loading", "Loading upstreams", "Gathering the router's active upstream inventory.");
         const [clientsPayload, discoveryPayload, upstreamsPayload] = await Promise.all([
           fetchJson("/v1/setup/clients"),
           fetchJson("/v1/setup/discovery"),
@@ -2027,6 +2180,10 @@
       }
 
       async function loadOperationsData() {
+        document.getElementById("toolsTable").innerHTML = renderTableStateRow(4, "loading", "Loading tools", "Refreshing the current tool registry.");
+        document.getElementById("policiesTable").innerHTML = renderTableStateRow(4, "loading", "Loading policies", "Reading active allow and deny rules.");
+        document.getElementById("toolCallsTable").innerHTML = renderTableStateRow(5, "loading", "Loading recent calls", "Gathering recent runtime activity.");
+        document.getElementById("eventFeed").innerHTML = renderStateMessage("loading", "Loading live events", "Preparing the latest event slice.");
         const [tools, policies, toolCalls, events] = await Promise.all([
           fetchJson("/v1/tools"),
           fetchJson("/v1/policies"),
@@ -2046,7 +2203,9 @@
       }
 
       async function reloadAllData() {
+        setGlobalStatus("loading", "Loading dashboard surfaces...");
         await Promise.all([loadSetupData(), loadOperationsData()]);
+        setGlobalStatus("ready", "Dashboard ready for setup.");
       }
 
       async function refreshRegistry() {
@@ -2116,6 +2275,7 @@
           }
           document.getElementById("socketStatus").textContent = "WebSocket live";
           document.getElementById("socketStatus").className = "chip good";
+          setGlobalStatus("ready", "Dashboard ready with live events.");
         });
         socket.addEventListener("close", () => {
           if (state.socket !== socket) {
@@ -2123,6 +2283,7 @@
           }
           document.getElementById("socketStatus").textContent = "WebSocket reconnecting";
           document.getElementById("socketStatus").className = "chip warn";
+          setGlobalStatus("loading", "Event stream reconnecting...");
           window.setTimeout(connectEvents, 1500);
         });
         socket.addEventListener("message", (event) => {

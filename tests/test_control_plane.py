@@ -26,6 +26,16 @@ def test_dashboard_page_renders_phase2_import_and_control_plane_shell(client):
     assert 'id="importOverview"' in response.text
 
 
+def test_dashboard_page_renders_phase3_state_system(client):
+    response = client.get("/dashboard")
+
+    assert response.status_code == 200
+    assert 'id="globalStatusBanner"' in response.text
+    assert "function renderStateMessage(" in response.text
+    assert "@keyframes dashboard-float-in" in response.text
+    assert "@media (prefers-reduced-motion: reduce)" in response.text
+
+
 def test_control_plane_refreshes_and_lists_tools(integrated_client):
     initial_response = integrated_client.get("/v1/tools")
     assert initial_response.status_code == 200
