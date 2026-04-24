@@ -255,7 +255,7 @@ Create a persistent sidebar during setup:
 ## Phase 3: Import Screen Redesign
 
 ### Task 3.1: Simplify Import Layout
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** Medium
 **Files:** `js/views/import.js`, `css/views.css`
 
@@ -266,17 +266,17 @@ Redesign import screen:
 - Side/Bottom: Already imported upstreams (minimal)
 
 **Success Criteria:**
-- [ ] Layout follows single-purpose principle
-- [ ] Candidates clearly selectable
-- [ ] Import button prominent
-- [ ] Already imported list doesn't dominate
+- [x] Layout follows single-purpose principle
+- [x] Candidates clearly selectable
+- [x] Import button prominent
+- [x] Already imported list doesn't dominate
 
 ---
 
 ### Task 3.2: Candidate Card Component
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** Medium
-**Files:** `js/components.js`
+**Files:** `js/views/import.js`
 
 Create candidate card:
 - Server name (bold)
@@ -288,15 +288,15 @@ Create candidate card:
 - Skip reason if not importable
 
 **Success Criteria:**
-- [ ] All candidate info visible at glance
-- [ ] Importable vs non-importable clear
-- [ ] Checkbox state syncs with "Import" button
-- [ ] Responsive (stacks on mobile)
+- [x] All candidate info visible at glance
+- [x] Importable vs non-importable clear
+- [x] Checkbox state syncs with "Import" button
+- [x] Responsive (stacks on mobile)
 
 ---
 
 ### Task 3.3: Import Results Feedback
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** Low
 **Files:** `js/views/import.js`
 
@@ -308,9 +308,9 @@ Show post-import feedback:
 - "Refresh Discovery" button
 
 **Success Criteria:**
-- [ ] Results displayed after import
-- [ ] Clear counts shown
-- [ ] Error state handled gracefully
+- [x] Results displayed after import
+- [x] Clear counts shown
+- [x] Error state handled gracefully
 
 ---
 
