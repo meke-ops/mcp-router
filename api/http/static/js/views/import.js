@@ -118,13 +118,11 @@ function renderCandidateCard(candidate) {
           ${isImportable ? "" : "disabled"}
           ${isImportable ? "" : "title=\"" + escapeHtml(candidate.importReason || "Not importable") + "\""}
         />
-        <div style="flex: 1;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-2);">
-            <div>
-              <div style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;">
-                ${escapeHtml(candidate.sourceLabel)} / ${escapeHtml(candidate.scope)}
-              </div>
-              <h3 style="margin-top: var(--space-1); font-size: 1.125rem;">${escapeHtml(candidate.serverName)}</h3>
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-1);">
+            <div style="display: flex; align-items: center; gap: var(--space-2);">
+              <h3 style="font-size: 1.25rem; font-weight: 600; margin: 0;">${escapeHtml(candidate.serverName)}</h3>
+              ${renderBadge(candidate.transport.toLowerCase())}
             </div>
             ${isImportable 
               ? renderBadge("importable", "success")
@@ -132,19 +130,11 @@ function renderCandidateCard(candidate) {
             }
           </div>
           
-          <p style="font-size: 0.875rem; margin-bottom: var(--space-2);">${escapeHtml(candidate.summary)}</p>
-          
-          <div class="card-meta" style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
-            ${renderBadge(candidate.transport)}
-            ${candidate.envKeys && candidate.envKeys.length > 0 
-              ? renderBadge(`env: ${candidate.envKeys.join(", ")}`)
-              : ""
-            }
+          <div style="font-size: 0.75rem; color: var(--muted); margin-bottom: var(--space-1);">
+            ${escapeHtml(candidate.sourceLabel)} / ${escapeHtml(candidate.scope)}
           </div>
           
-          <div style="margin-top: var(--space-2); font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); word-break: break-all;">
-            ${escapeHtml(candidate.configPath)}
-          </div>
+          <p style="font-size: 0.875rem; color: var(--muted); line-height: 1.5;">${escapeHtml(candidate.summary)}</p>
           
           ${candidate.importReason ? `
             <div style="margin-top: var(--space-2); font-size: 0.75rem; color: var(--danger);">
