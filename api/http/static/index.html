@@ -1,2 +1,367 @@
-<!-- MCP Router Dashboard - Main Shell -->
-<!-- Placeholder: Will contain the main HTML structure -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MCP Router Dashboard</title>
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/views.css" />
+  
+  <style>
+    /* App-specific layout */
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-4) 0;
+      margin-bottom: var(--space-4);
+      border-bottom: 1px solid var(--line);
+    }
+    
+    .app-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin: 0;
+    }
+    
+    .app-subtitle {
+      font-size: 0.875rem;
+      color: var(--muted);
+      margin-top: var(--space-1);
+    }
+    
+    .main-tabs {
+      display: flex;
+      gap: var(--space-1);
+      margin-bottom: var(--space-5);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: var(--space-3);
+    }
+    
+    .main-tab-btn {
+      padding: var(--space-3) var(--space-4);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      color: var(--muted);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      margin-bottom: calc(-1 * var(--space-3) - 1px);
+      padding-bottom: calc(var(--space-3) - 2px);
+    }
+    
+    .main-tab-btn:hover {
+      color: var(--ink);
+    }
+    
+    .main-tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    
+    .global-status {
+      position: fixed;
+      bottom: var(--space-4);
+      right: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-lg);
+      font-size: 0.875rem;
+      z-index: 100;
+      max-width: 400px;
+      transition: all var(--transition-fast);
+    }
+    
+    .global-status.hidden {
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
+    }
+    
+    .global-status.success {
+      background: rgba(40, 167, 69, 0.1);
+      border-color: rgba(40, 167, 69, 0.2);
+      color: var(--success);
+    }
+    
+    .global-status.error {
+      background: rgba(220, 53, 69, 0.1);
+      border-color: rgba(220, 53, 69, 0.2);
+      color: var(--danger);
+    }
+    
+    .global-status.loading {
+      background: rgba(255, 193, 7, 0.1);
+      border-color: rgba(255, 193, 7, 0.2);
+      color: #856404;
+    }
+    
+    .auth-section {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    
+    .auth-input {
+      width: 200px;
+      padding: var(--space-2) var(--space-3);
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Header -->
+    <header class="app-header">
+      <div>
+        <h1 class="app-title">MCP Router</h1>
+        <p class="app-subtitle">Manage and route MCP server connections</p>
+      </div>
+      
+      <div class="auth-section">
+        <input 
+          type="password" 
+          id="authTokenInput" 
+          class="auth-input" 
+          placeholder="Bearer token (optional)" 
+        />
+        <span id="authStatus" class="badge">No auth</span>
+      </div>
+    </header>
+    
+    <!-- Utility Bar -->
+    <div class="utility-bar" id="utilityBar">
+      <div style="display: flex; align-items: center; gap: var(--space-3);">
+        <span class="label">Router URL:</span>
+        <code id="routerUrl" style="font-size: 0.875rem;"></code>
+      </div>
+      <div style="display: flex; align-items: center; gap: var(--space-3);">
+        <span class="label">WebSocket:</span>
+        <span id="wsStatus" class="badge">Disconnected</span>
+      </div>
+    </div>
+    
+    <!-- Main Tabs -->
+    <nav class="main-tabs" id="mainTabs">
+      <button class="main-tab-btn active" data-tab="connect">Connect</button>
+      <button class="main-tab-btn" data-tab="import">Import</button>
+      <button class="main-tab-btn" data-tab="operations">Operations</button>
+    </nav>
+    
+    <!-- Tab Content -->
+    <main id="tabContent">
+      <div class="tab-pane active" id="connect">
+        <div id="setupView"></div>
+      </div>
+      <div class="tab-pane" id="import">
+        <div id="importView"></div>
+      </div>
+      <div class="tab-pane" id="operations">
+        <div id="operationsView"></div>
+      </div>
+    </main>
+  </div>
+  
+  <!-- Global Status Toast -->
+  <div class="global-status hidden" id="globalStatus">
+    <span id="globalStatusText"></span>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module">
+    import { createWebSocket, apiGet } from './js/api.js';
+    import { 
+      authStore, 
+      registryStore, 
+      uiStore,
+      setAuthToken,
+      setActiveTab,
+      setGlobalStatus,
+    } from './js/state.js';
+    import { renderSetupView } from './js/views/setup.js';
+    import { renderImportView } from './js/views/import.js';
+    import { renderOperationsView } from './js/views/operations.js';
+    
+    // ===== INITIALIZATION =====
+    
+    async function init() {
+      // Set router URL
+      document.getElementById('routerUrl').textContent = `${window.location.origin}/mcp`;
+      
+      // Load auth token from storage
+      const savedToken = window.sessionStorage.getItem('dashboardBearerToken') || '';
+      if (savedToken) {
+        document.getElementById('authTokenInput').value = savedToken;
+        setAuthToken(savedToken);
+      }
+      
+      // Connect WebSocket
+      connectWebSocket();
+      
+      // Load initial data
+      await loadInitialData();
+      
+      // Render initial view
+      setActiveTab('connect');
+      renderActiveView();
+      
+      console.log('MCP Router Dashboard initialized');
+    }
+    
+    // ===== DATA LOADING =====
+    
+    async function loadInitialData() {
+      const token = authStore.get().token;
+      
+      try {
+        setGlobalStatus('loading', 'Loading dashboard data...');
+        
+        const [clients, upstreams, tools, candidates, policies] = await Promise.allSettled([
+          apiGet('/v1/setup/clients', token),
+          apiGet('/v1/upstreams', token),
+          apiGet('/v1/tools', token),
+          apiGet('/v1/setup/discovery', token),
+          apiGet('/v1/policies', token),
+        ]);
+        
+        registryStore.set({
+          clients: clients.status === 'fulfilled' ? (clients.value.items || []) : [],
+          upstreams: upstreams.status === 'fulfilled' ? (upstreams.value.items || []) : [],
+          tools: tools.status === 'fulfilled' ? (tools.value.items || []) : [],
+          candidates: candidates.status === 'fulfilled' ? (candidates.value.items || []) : [],
+          policies: policies.status === 'fulfilled' ? (policies.value.items || []) : [],
+        });
+        
+        setGlobalStatus('ready', 'Dashboard loaded successfully.');
+      } catch (error) {
+        console.error('Failed to load initial data:', error);
+        setGlobalStatus('error', 'Failed to load dashboard data. Some features may not work.');
+      }
+    }
+    
+    // ===== WEBSOCKET =====
+    
+    function connectWebSocket() {
+      const token = authStore.get().token;
+      
+      const socket = createWebSocket(
+        token,
+        (payload) => {
+          // Handle incoming events
+          const ops = uiStore.get();
+          const events = [...ops.events, payload];
+          // Keep last 30 events
+          if (events.length > 30) events.shift();
+          uiStore.set({ events });
+          
+          // Show notification for important events
+          if (payload.eventType === 'tool_call' || payload.eventType === 'policy_decision') {
+            setGlobalStatus('ready', `${payload.eventType}: ${payload.toolName || payload.rule}`);
+          }
+        },
+        () => {
+          document.getElementById('wsStatus').textContent = 'Connected';
+          document.getElementById('wsStatus').className = 'badge badge-success';
+        },
+        () => {
+          document.getElementById('wsStatus').textContent = 'Disconnected';
+          document.getElementById('wsStatus').className = 'badge badge-danger';
+        }
+      );
+      
+      uiStore.set({ socket });
+    }
+    
+    // ===== VIEW RENDERING =====
+    
+    function renderActiveView() {
+      const tab = uiStore.get().activeTab;
+      
+      switch (tab) {
+        case 'connect':
+          renderSetupView('setupView');
+          break;
+        case 'import':
+          renderImportView('importView');
+          break;
+        case 'operations':
+          renderOperationsView('operationsView');
+          break;
+      }
+    }
+    
+    // ===== EVENT LISTENERS =====
+    
+    // Tab switching
+    document.querySelectorAll('.main-tab-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        
+        // Update active tab
+        document.querySelectorAll('.main-tab-btn').forEach((b) => b.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach((p) => p.classList.remove('active'));
+        
+        btn.classList.add('active');
+        document.getElementById(tab).classList.add('active');
+        
+        setActiveTab(tab);
+        renderActiveView();
+      });
+    });
+    
+    // Auth token input
+    const authInput = document.getElementById('authTokenInput');
+    authInput.addEventListener('input', (e) => {
+      const token = e.target.value.trim();
+      setAuthToken(token);
+      
+      const statusEl = document.getElementById('authStatus');
+      if (token) {
+        statusEl.textContent = 'Auth set';
+        statusEl.className = 'badge badge-success';
+      } else {
+        statusEl.textContent = 'No auth';
+        statusEl.className = 'badge';
+      }
+      
+      // Reconnect WebSocket with new token
+      const oldSocket = uiStore.get().socket;
+      if (oldSocket) oldSocket.close();
+      connectWebSocket();
+    });
+    
+    // Global status toast
+    uiStore.subscribe((state) => {
+      const toast = document.getElementById('globalStatus');
+      const text = document.getElementById('globalStatusText');
+      
+      if (state.globalStatus && state.globalStatus.message) {
+        text.textContent = state.globalStatus.message;
+        toast.className = `global-status ${state.globalStatus.tone}`;
+        
+        // Auto-hide after 3 seconds for non-loading states
+        if (state.globalStatus.tone !== 'loading') {
+          setTimeout(() => {
+            toast.classList.add('hidden');
+          }, 3000);
+        }
+      } else {
+        toast.classList.add('hidden');
+      }
+    });
+    
+    // ===== START =====
+    
+    init().catch(console.error);
+  </script>
+</body>
+</html>
