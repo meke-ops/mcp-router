@@ -402,7 +402,7 @@ Redesign event feed:
 ## Phase 5: Design System Polish
 
 ### Task 5.1: Simplify Color Palette
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** Medium
 **Files:** `css/base.css`
 
@@ -417,14 +417,14 @@ Reduce to core colors:
 - `--danger`: #dc3545 (red)
 
 **Success Criteria:**
-- [ ] Only 8 core colors defined
-- [ ] All components use these variables
-- [ ] No inline colors in JS/HTML
+- [x] Only 8 core colors defined
+- [x] All components use these variables
+- [x] No inline colors in JS/HTML
 
 ---
 
 ### Task 5.2: Typography & Spacing
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** Low
 **Files:** `css/base.css`, `css/layout.css`
 
@@ -435,14 +435,14 @@ Standardize:
 - Line heights (1.25 for headings, 1.5 for body)
 
 **Success Criteria:**
-- [ ] Typography consistent across all views
-- [ ] Spacing follows 4px grid
-- [ ] No magic numbers in CSS
+- [x] Typography consistent across all views
+- [x] Spacing follows 4px grid
+- [x] No magic numbers in CSS
 
 ---
 
 ### Task 5.3: Component Hover/Focus States
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** Low
 **Files:** `css/components.css`
 
@@ -453,9 +453,9 @@ Add interaction states:
 - Links: underline animation
 
 **Success Criteria:**
-- [ ] All interactive elements have hover state
-- [ ] Focus visible for keyboard navigation
-- [ ] Animations subtle (<200ms)
+- [x] All interactive elements have hover state
+- [x] Focus visible for keyboard navigation
+- [x] Animations subtle (<200ms)
 
 ---
 
