@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
 import json
 import logging
+from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
 
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from api.http.dashboard import router as dashboard_router
@@ -21,7 +23,12 @@ from internal.health import ReadinessService
 from internal.logging import configure_logging
 from internal.mcp.service import MCPRouterService
 from internal.metrics import InMemoryMetricsRecorder
-from internal.policy import InMemoryPolicyStore, PolicyEngine, PolicyObligation, PolicyRule
+from internal.policy import (
+    InMemoryPolicyStore,
+    PolicyEngine,
+    PolicyObligation,
+    PolicyRule,
+)
 from internal.resilience import InMemoryCircuitBreakerStore
 from internal.registry import InMemoryToolRegistry, UpstreamServerDefinition
 from internal.session_manager import InMemorySessionManager
@@ -176,9 +183,7 @@ def _merge_upstream_sources(
     env_upstreams: list[UpstreamServerDefinition] | None,
     persisted_upstreams: list[UpstreamServerDefinition],
 ) -> list[UpstreamServerDefinition]:
-    merged = {
-        upstream.server_id: upstream for upstream in env_upstreams or []
-    }
+    merged = {upstream.server_id: upstream for upstream in env_upstreams or []}
     for upstream in persisted_upstreams:
         merged[upstream.server_id] = upstream
     return list(merged.values())
@@ -224,10 +229,14 @@ def _load_policy_rules(settings: Settings) -> list[PolicyRule] | None:
                 reason=str(raw_item["reason"]),
                 priority=int(raw_item.get("priority", 0)),
                 tenant_ids=tuple(str(item) for item in raw_item.get("tenant_ids", [])),
-                principal_ids=tuple(str(item) for item in raw_item.get("principal_ids", [])),
+                principal_ids=tuple(
+                    str(item) for item in raw_item.get("principal_ids", [])
+                ),
                 roles=tuple(str(item) for item in raw_item.get("roles", [])),
                 tool_names=tuple(str(item) for item in raw_item.get("tool_names", [])),
-                tool_versions=tuple(str(item) for item in raw_item.get("tool_versions", [])),
+                tool_versions=tuple(
+                    str(item) for item in raw_item.get("tool_versions", [])
+                ),
                 obligations=tuple(parsed_obligations),
             )
         )
@@ -272,6 +281,12 @@ def create_app(
     app.include_router(mcp_router, prefix=app_settings.mcp_prefix)
     app.include_router(dashboard_router)
     app.include_router(ops_router)
+
+    # Serve static files for the modular dashboard
+    static_dir = Path(__file__).parent.parent / "api" / "http" / "static"
+    if static_dir.exists():
+        app.mount("/css", StaticFiles(directory=str(static_dir / "css")), name="css")
+        app.mount("/js", StaticFiles(directory=str(static_dir / "js")), name="js")
 
     return app
 
