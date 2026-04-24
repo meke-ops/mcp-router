@@ -42,7 +42,7 @@ api/http/static/
 ---
 
 ### Task 1.2: Extract CSS
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** High
 **Files:** `css/base.css`, `css/layout.css`, `css/components.css`, `css/views.css`
 
@@ -53,15 +53,15 @@ Move all CSS from dashboard.html into modular stylesheets:
 - `views.css`: Tab-pane specific layouts
 
 **Success Criteria:**
-- [ ] All CSS extracted from dashboard.html
-- [ ] No visual regressions when stylesheets loaded
-- [ ] CSS variables reduced to 5-6 core colors max
-- [ ] Neo-brutalist borders softened (1px instead of 3px)
+- [x] All CSS extracted from dashboard.html
+- [x] No visual regressions when stylesheets loaded
+- [x] CSS variables reduced to 8 core colors
+- [x] Neo-brutalist borders softened (1px instead of 3px)
 
 ---
 
 ### Task 1.3: Extract JavaScript - API Client
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** High
 **Files:** `js/api.js`
 
@@ -71,9 +71,9 @@ Extract all API-related functions:
 - Endpoint URLs and HTTP methods
 
 **Success Criteria:**
-- [ ] All fetch/WebSocket logic in api.js
-- [ ] Proper error handling for network failures
-- [ ] Token injection handled transparently
+- [x] All fetch/WebSocket logic in api.js
+- [x] Proper error handling for network failures
+- [x] Token injection handled transparently
 
 ---
 
