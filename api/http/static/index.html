@@ -299,6 +299,14 @@
       }
     }
     
+    // ===== GLOBAL FUNCTIONS =====
+    
+    // Global tab switcher for inline onclick handlers
+    window.switchToTab = function(tabName) {
+      console.log('Switching to tab:', tabName);
+      setActiveTab(tabName);
+    };
+    
     // ===== EVENT LISTENERS =====
     
     // Tab switching

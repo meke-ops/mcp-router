@@ -363,11 +363,13 @@ function renderVerificationResult(verification) {
           label: "Import Servers →",
           variant: "secondary",
           id: "gotoImportBtn",
+          onClick: "window.switchToTab('import')",
         })}
         ${renderButton({
           label: "Control Panel →",
           variant: "ghost",
           id: "gotoOperationsBtn",
+          onClick: "window.switchToTab('operations')",
         })}
       </div>
     </div>
