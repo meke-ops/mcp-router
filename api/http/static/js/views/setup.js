@@ -25,6 +25,7 @@ import {
   authStore,
   getAuthToken,
   setGlobalStatus,
+  setActiveTab,
 } from "../state.js";
 
 // ===== STEP CONFIGURATION =====
