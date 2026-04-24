@@ -140,6 +140,7 @@
 
 .candidate-card {
   transition: all var(--transition-fast);
+  overflow: hidden;
 }
 
 .candidate-card:hover {
@@ -151,15 +152,28 @@
   gap: var(--space-3);
   align-items: flex-start;
   cursor: pointer;
+  width: 100%;
+  min-width: 0;
 }
 
 .candidate-card input[type="checkbox"] {
   margin-top: var(--space-1);
+  flex-shrink: 0;
 }
 
 .candidate-card .card-title {
   font-weight: 600;
   margin-bottom: var(--space-2);
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  max-width: 100%;
+}
+
+.candidate-card label > div:last-child {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .candidate-card .card-meta {
