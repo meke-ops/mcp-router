@@ -317,7 +317,7 @@ Show post-import feedback:
 ## Phase 4: Control Plane Redesign
 
 ### Task 4.1: Overview Dashboard
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** Medium
 **Files:** `js/views/operations.js`, `css/views.css`
 
@@ -331,14 +331,14 @@ Create overview row:
 - Auto-updates via WebSocket
 
 **Success Criteria:**
-- [ ] 4 cards render with live data
-- [ ] Numbers update via WebSocket
-- [ ] Clickable navigation works
+- [x] 4 cards render with live data
+- [x] Numbers update via WebSocket
+- [x] Clickable navigation works
 
 ---
 
 ### Task 4.2: Data Tables
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** Medium
 **Files:** `js/views/operations.js`, `js/components.js`
 
@@ -350,15 +350,15 @@ Implement read-only tables:
 - Pagination (if >20 rows)
 
 **Success Criteria:**
-- [ ] All tables render correctly
-- [ ] Column sorting works
-- [ ] Empty states handled
-- [ ] Responsive (horizontal scroll if needed)
+- [x] All tables render correctly
+- [x] Column sorting works
+- [x] Empty states handled
+- [x] Responsive (horizontal scroll if needed)
 
 ---
 
 ### Task 4.3: Advanced Operations Accordion
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** Medium
 **Files:** `js/views/operations.js`, `css/views.css`
 
@@ -372,15 +372,15 @@ Collapsible advanced section:
 - Each form has its own submit + status
 
 **Success Criteria:**
-- [ ] Section starts collapsed
-- [ ] Toggle works smoothly
-- [ ] Forms submit correctly
-- [ ] Success/error feedback per form
+- [x] Section starts collapsed
+- [x] Toggle works smoothly
+- [x] Forms submit correctly
+- [x] Success/error feedback per form
 
 ---
 
 ### Task 4.4: Live Event Feed
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** Low
 **Files:** `js/views/operations.js`
 
@@ -392,10 +392,10 @@ Redesign event feed:
 - "Clear" button
 
 **Success Criteria:**
-- [ ] Events display in real-time
-- [ ] Compact view doesn't dominate
-- [ ] JSON detail expandable
-- [ ] Auto-scroll optional
+- [x] Events display in real-time
+- [x] Compact view doesn't dominate
+- [x] JSON detail expandable
+- [x] Auto-scroll optional
 
 ---
 
