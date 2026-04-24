@@ -108,6 +108,8 @@ function renderCandidates(candidates) {
 
 function renderCandidateCard(candidate) {
   const isImportable = candidate.importable;
+  const statusIcon = isImportable ? "●" : "○";
+  const statusColor = isImportable ? "var(--success)" : "var(--warning)";
   
   return `
     <div class="card candidate-card ${isImportable ? "" : "disabled"}" style="${!isImportable ? "opacity: 0.6;" : ""}">
@@ -118,26 +120,19 @@ function renderCandidateCard(candidate) {
           ${isImportable ? "" : "disabled"}
           ${isImportable ? "" : "title=\"" + escapeHtml(candidate.importReason || "Not importable") + "\""}
         />
-        <div style="flex: 1; min-width: 0;">
+        <div style="flex: 1; min-width: 0; overflow: hidden;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-1);">
-            <div style="display: flex; align-items: center; gap: var(--space-2);">
-              <h3 style="font-size: 1.25rem; font-weight: 600; margin: 0;">${escapeHtml(candidate.serverName)}</h3>
-              ${renderBadge(candidate.transport.toLowerCase())}
-            </div>
-            ${isImportable 
-              ? renderBadge("importable", "success")
-              : renderBadge("skipped", "warning")
-            }
+            <h3 style="font-size: 1.125rem; font-weight: 600; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(candidate.serverName)}</h3>
+            <span style="color: ${statusColor}; font-size: 0.875rem; flex-shrink: 0; margin-left: var(--space-2);" title="${isImportable ? 'Ready to import' : 'Skipped'}">${statusIcon}</span>
           </div>
           
-          <div style="font-size: 0.75rem; color: var(--muted); margin-bottom: var(--space-1);">
-            ${escapeHtml(candidate.sourceLabel)} / ${escapeHtml(candidate.scope)}
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--muted);">
+            <span>${escapeHtml(candidate.sourceLabel)} / ${escapeHtml(candidate.scope)}</span>
+            <span style="text-transform: uppercase; letter-spacing: 0.05em;">${escapeHtml(candidate.transport)}</span>
           </div>
-          
-          <p style="font-size: 0.875rem; color: var(--muted); line-height: 1.5;">${escapeHtml(candidate.summary)}</p>
           
           ${candidate.importReason ? `
-            <div style="margin-top: var(--space-2); font-size: 0.75rem; color: var(--danger);">
+            <div style="margin-top: var(--space-2); font-size: 0.75rem; color: var(--danger); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
               ${escapeHtml(candidate.importReason)}
             </div>
           ` : ""}
