@@ -141,7 +141,7 @@ Build reusable render functions:
 ## Phase 2: Setup Flow Redesign
 
 ### Task 2.1: Implement Step Wizard Component
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** High
 **Files:** `js/views/setup.js`, `css/views.css`
 
@@ -161,15 +161,15 @@ Create a 3-step wizard:
 ```
 
 **Success Criteria:**
-- [ ] Step indicator renders correctly
-- [ ] Only active step content visible
-- [ ] Navigation buttons work (Next/Previous)
-- [ ] Step validation prevents advancing
+- [x] Step indicator renders correctly
+- [x] Only active step content visible
+- [x] Navigation buttons work (Next/Previous)
+- [x] Step validation prevents advancing
 
 ---
 
 ### Task 2.2: Step 1 - Client Selection
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** High
 **Files:** `js/views/setup.js`
 
@@ -180,15 +180,15 @@ Implement client selection step:
 - Auto-advance to step 2 on selection
 
 **Success Criteria:**
-- [ ] Client cards render with correct info
-- [ ] Selected state visually clear
-- [ ] Scope badges show detected/undetected
-- [ ] Selection triggers step advance
+- [x] Client cards render with correct info
+- [x] Selected state visually clear
+- [x] Scope badges show detected/undetected
+- [x] Selection triggers step advance
 
 ---
 
 ### Task 2.3: Step 2 - Config Preview
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** High
 **Files:** `js/views/setup.js`
 
@@ -200,15 +200,15 @@ Implement preview step:
 - MCP URL input (pre-filled)
 
 **Success Criteria:**
-- [ ] Preview generates on step entry
-- [ ] Config format correct for selected client
-- [ ] Copy button works
-- [ ] URL override functional
+- [x] Preview generates on step entry
+- [x] Config format correct for selected client
+- [x] Copy button works
+- [x] URL override functional
 
 ---
 
 ### Task 2.4: Step 3 - Apply & Verify
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** High
 **Files:** `js/views/setup.js`
 
@@ -224,16 +224,16 @@ Implement apply step:
 - "Go to Import" or "Go to Operations" CTA on success
 
 **Success Criteria:**
-- [ ] Apply button calls correct API
-- [ ] Success/failure clearly shown
-- [ ] Verification runs automatically
-- [ ] Results displayed in readable format
-- [ ] Next-step CTAs appear on success
+- [x] Apply button calls correct API
+- [x] Success/failure clearly shown
+- [x] Verification runs automatically
+- [x] Results displayed in readable format
+- [x] Next-step CTAs appear on success
 
 ---
 
 ### Task 2.5: Setup Context Sidebar
-**Status:** ⬜ Not Started
+**Status:** ✅ Completed
 **Priority:** Medium
 **Files:** `js/views/setup.js`, `css/views.css`
 
@@ -245,10 +245,10 @@ Create a persistent sidebar during setup:
 - Quick copy shortcuts (URL, path)
 
 **Success Criteria:**
-- [ ] Sidebar visible during all setup steps
-- [ ] Content updates based on selection
-- [ ] Doesn't compete with main flow for attention
-- [ ] Collapsible on mobile
+- [x] Sidebar visible during all setup steps
+- [x] Content updates based on selection
+- [x] Doesn't compete with main flow for attention
+- [x] Collapsible on mobile
 
 ---
 
