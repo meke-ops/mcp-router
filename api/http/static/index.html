@@ -339,6 +339,32 @@
       connectWebSocket();
     });
     
+    // Watch for active tab changes and update UI
+    uiStore.subscribe((state) => {
+      const tab = state.activeTab;
+      
+      // Update tab buttons
+      document.querySelectorAll('.main-tab-btn').forEach((btn) => {
+        if (btn.dataset.tab === tab) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+      
+      // Update tab panes
+      document.querySelectorAll('.tab-pane').forEach((pane) => {
+        if (pane.id === tab) {
+          pane.classList.add('active');
+        } else {
+          pane.classList.remove('active');
+        }
+      });
+      
+      // Render the view
+      renderActiveView();
+    });
+    
     // Global status toast
     uiStore.subscribe((state) => {
       const toast = document.getElementById('globalStatus');

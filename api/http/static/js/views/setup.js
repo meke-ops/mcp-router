@@ -498,18 +498,14 @@ function attachSetupListeners(container) {
   const gotoImportBtn = container.querySelector("#gotoImportBtn");
   if (gotoImportBtn) {
     gotoImportBtn.addEventListener("click", () => {
-      import("../state.js").then(({ setActiveTab }) => {
-        setActiveTab("import");
-      });
+      setActiveTab("import");
     });
   }
 
   const gotoOperationsBtn = container.querySelector("#gotoOperationsBtn");
   if (gotoOperationsBtn) {
     gotoOperationsBtn.addEventListener("click", () => {
-      import("../state.js").then(({ setActiveTab }) => {
-        setActiveTab("operations");
-      });
+      setActiveTab("operations");
     });
   }
 }
