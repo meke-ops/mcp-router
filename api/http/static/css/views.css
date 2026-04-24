@@ -1,2 +1,314 @@
 /* MCP Router Dashboard - View-Specific Styles */
-/* Placeholder: Setup, import, operations tab styles */
+
+/* ===== SETUP VIEW ===== */
+
+/* Step Wizard */
+.step-wizard {
+  margin-bottom: var(--space-6);
+}
+
+.step-indicator {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.step-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  opacity: 0.6;
+  transition: all var(--transition-base);
+}
+
+.step-item.active {
+  opacity: 1;
+  background: white;
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.step-item.completed {
+  opacity: 1;
+  background: rgba(40, 167, 69, 0.1);
+  border-color: var(--success);
+}
+
+.step-number {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--line);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.step-item.active .step-number {
+  background: var(--accent);
+  color: white;
+}
+
+.step-item.completed .step-number {
+  background: var(--success);
+  color: white;
+}
+
+.step-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Client Cards */
+.client-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+.client-card {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.client-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+}
+
+.client-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 122, 0, 0.1);
+}
+
+.client-card h3 {
+  margin-top: var(--space-3);
+  font-size: 1.125rem;
+}
+
+.client-meta {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+}
+
+/* Setup Context Sidebar */
+.setup-sidebar {
+  position: sticky;
+  top: var(--space-4);
+}
+
+.setup-sidebar .info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.setup-sidebar .info-row:last-child {
+  border-bottom: none;
+}
+
+.setup-sidebar .info-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.setup-sidebar .info-value {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+/* ===== IMPORT VIEW ===== */
+
+.candidate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-4);
+}
+
+.candidate-card {
+  transition: all var(--transition-fast);
+}
+
+.candidate-card:hover {
+  border-color: var(--accent);
+}
+
+.candidate-card label {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.candidate-card input[type="checkbox"] {
+  margin-top: var(--space-1);
+}
+
+.candidate-card .card-title {
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+
+.candidate-card .card-meta {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+}
+
+.candidate-card .card-path {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: var(--space-2);
+  word-break: break-all;
+}
+
+.import-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+/* ===== OPERATIONS VIEW ===== */
+
+/* Overview Metrics */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.metric-card {
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.metric-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.metric-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+  margin: var(--space-3) 0;
+}
+
+.metric-label {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+/* Advanced Operations */
+.advanced-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.advanced-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-4);
+  background: var(--surface);
+  cursor: pointer;
+  user-select: none;
+}
+
+.advanced-panel-header:hover {
+  background: #e9ecef;
+}
+
+.advanced-panel-body {
+  padding: var(--space-4);
+  display: none;
+}
+
+.advanced-panel.open .advanced-panel-body {
+  display: block;
+}
+
+.advanced-panel.open .toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* Upstream Cards */
+.upstream-stack {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+.upstream-card .card-header {
+  margin-bottom: var(--space-3);
+}
+
+.upstream-card .endpoint {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+/* ===== RESPONSIVE ===== */
+
+@media (max-width: 1024px) {
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .step-indicator {
+    flex-direction: column;
+  }
+  
+  .step-item {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--space-3);
+  }
+  
+  .client-grid,
+  .candidate-grid,
+  .upstream-stack {
+    grid-template-columns: 1fr;
+  }
+  
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .import-actions {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+}
+
+@media (max-width: 480px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
